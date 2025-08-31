@@ -20,22 +20,22 @@ def main_post_method(request: dict):
     service_times = request.get("service_times", None)
 
     if addresses is None or hotel_address is None or service_times is None: # If passes => all fields present
-        return {"error": "Missing required fields"}
+        return {"route":[],"success":False,"error": "Missing required fields"}
 
     # Optional paramters with default values
     start_hour = request.get("start_hour", 9)
     end_hour = request.get("end_hour", 21)
     lunch_start_hour = request.get("lunch_start_hour", 11)
     lunch_end_hour = request.get("lunch_end_hour", 13)
-    dinner_start_hour = request.get("dinner_start_hour", 19)
-    dinner_end_hour = request.get("dinner_end_hour", 21)
+    dinner_start_hour = request.get("dinner_start_hour", 17)
+    dinner_end_hour = request.get("dinner_end_hour", 19)
 
     # --- Input validation ---
     if len(addresses) != len(service_times): # If passes => lengths of address and service_times match
-        return {"error": "Length of addresses and service_times must match"}
+        return {"route":[],"success":False,"error": "Length of addresses and service_times must match"}
     
     if len(addresses) < 1: # If passes => at least one address (besides hotel)
-        return {"error": "At least two eatery nodes are required"}
+        return {"route":[],"success":False,"error": "At least two eatery nodes are required"}
     
     # TODO: Put address and hotel verification here (e.g. using GOOGLE API)
     # NEED TO RETRIEVE eatery_nodes and time_matrix FROM GOOGLE API
@@ -130,7 +130,7 @@ def trip_optimizer(data: dict, lunch_index:int=0, dinner_index:int=1, flip:bool=
     # --- Print solution ---
     if solution:
         route = _format_solution(routing, manager, time_dimension, solution, data)
-        return {"route":route}
+        return {"route":route,"success":True,"error":None}
     else:
         # 
         if not flip:
@@ -145,7 +145,7 @@ def trip_optimizer(data: dict, lunch_index:int=0, dinner_index:int=1, flip:bool=
             trip_optimizer(data=data, lunch_index=lunch_index + 1, dinner_index=lunch_index + 2, flip=False,)
         else:
             print("No solution found!")
-            return {"error": "No solution found"}
+            return {"route":[],"success":False,"error": "No solution found"}
         
 def _format_solution(routing, manager, time_dimension, solution, data: dict):
     index = routing.Start(0)
@@ -178,6 +178,7 @@ def _format_solution(routing, manager, time_dimension, solution, data: dict):
     final["address"] = data['addresses'][data['depot']]
     final["postal_code"] = "000000" # TODO: Placeholder for postal code
     final["arrival_time"] = f"{data['start_hour']+return_time//60:02d}:{return_time%60:02d}"
+    final["type"] = "End"
     route.append(final)
     
     return route
