@@ -1,0 +1,11 @@
+{
+    "addresses":[1,2,3,4,5,6,7], 
+    "hotel_address":0, 
+    "service_times":[30, 120, 120, 120, 30, 60, 45],
+    "start_hour":9,
+    "end_hour":21,
+    "lunch_start_hour":11,
+    "lunch_end_hour":13,
+    "dinner_start_hour":19,
+    "dinner_end_hour":21
+}
