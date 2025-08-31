@@ -1,6 +1,6 @@
 {
-    "addresses":[1,2,3,4,5,6,7], 
-    "hotel_address":0, 
+    "addresses":["Hall 2","Pioneer Hall","Can 1","Can 2","Hall 5","Hall 6","Crescent Hall"], 
+    "hotel_address":"Hall 1", 
     "service_times":[30, 120, 120, 120, 30, 60, 45],
     "start_hour":9,
     "end_hour":21,

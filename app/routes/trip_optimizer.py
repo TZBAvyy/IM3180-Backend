@@ -37,14 +37,17 @@ def main_post_method(request: dict):
     if len(addresses) < 1: # If passes => at least one address (besides hotel)
         return {"error": "At least two eatery nodes are required"}
     
-    # Put address and hotel verification here (e.g. using Google Maps API)
+    # TODO: Put address and hotel verification here (e.g. using GOOGLE API)
+    # NEED TO RETRIEVE eatery_nodes and time_matrix FROM GOOGLE API
 
     # --- Format Settings for Optimizer ---
     data = {}
-    data['eatery_nodes'] = [3, 4] # HARD CODED FOR TESTING, CHANGE ON GOOGLE API INTEGRATION
-    data['time_matrix'] = [  # HARD CODED MATRIX FOR TESTING, CHANGE ON GOOGLE API INTEGRATION
-        [0, 12, 23, 34, 45, 21, 32, 28],
-        [12, 0, 17, 29, 38, 19, 27, 24],
+
+    # TODO: HIS BLOCK IS HARD CODED FOR TESTING, CHANGE ON GOOGLE API INTEGRATION
+    data['eatery_nodes'] = [3, 4] # indexes of lunch and dinner spots in the time_matrix
+    data['time_matrix'] = [ 
+        [0, 12, 23, 34, 45, 21, 32, 28], # time (minutes) between each pair of nodes 
+        [12, 0, 17, 29, 38, 19, 27, 24], # (e.g data['time_matrix'][i][j] is time taken to travel from node i to j)
         [23, 17, 0, 15, 27, 22, 18, 20],
         [34, 29, 15, 0, 16, 25, 21, 19],
         [45, 38, 27, 16, 0, 30, 24, 22],
@@ -52,6 +55,10 @@ def main_post_method(request: dict):
         [32, 27, 18, 21, 24, 14, 0, 13],
         [28, 24, 20, 19, 22, 18, 13, 0]
     ]
+    data["postal_codes"] = ["00000"+str(i) for i in range(len(addresses)+1)] # postal codes for each address
+    # TODO: THIS BLOCK IS HARD CODED MATRIX FOR TESTING, CHANGE ON GOOGLE API INTEGRATION
+
+    data['addresses'] = [hotel_address] + addresses
     data['service_times'] = [0] + service_times  # time (minutes) spent at each node
     data['num_vehicles'] = 1
     data['depot'] = 0  # start and end at node 0
@@ -65,7 +72,7 @@ def main_post_method(request: dict):
     result = trip_optimizer(data)
     return result
 
-def trip_optimizer(data, lunch_index=0, dinner_index=1, flip=False): 
+def trip_optimizer(data: dict, lunch_index:int=0, dinner_index:int=1, flip:bool=False): 
     
     # --- Input validation ---
     if len(data['eatery_nodes']) < 2:
@@ -122,7 +129,7 @@ def trip_optimizer(data, lunch_index=0, dinner_index=1, flip=False):
 
     # --- Print solution ---
     if solution:
-        route = format_solution(routing, manager, time_dimension, solution, data, data['start_hour'])
+        route = _format_solution(routing, manager, time_dimension, solution, data)
         return {"route":route}
     else:
         # 
@@ -140,27 +147,37 @@ def trip_optimizer(data, lunch_index=0, dinner_index=1, flip=False):
             print("No solution found!")
             return {"error": "No solution found"}
         
-def format_solution(routing, manager, time_dimension, solution, data, start_time):
-    # print(f"Route:")
+def _format_solution(routing, manager, time_dimension, solution, data: dict):
     index = routing.Start(0)
-    route = {}
+    route = []
     while not routing.IsEnd(index):
         node = manager.IndexToNode(index)
         time_val = solution.Value(time_dimension.CumulVar(index))
+        route_item = {}
+        route_item["address"] = data['addresses'][node]
+        route_item["postal_code"] = data['postal_codes'][node]
+        route_item["arrival_time"] = f"{data['start_hour']+time_val//60:02d}:{time_val%60:02d}"
+
         if node == data['depot']:
-            # print(f"Node {node} (Hotel) at time {start_time}:00")
-            route["Hotel"] = f"{start_time:02d}:00"
+            route_item["type"] = "Start"
+
         elif node == data['lunch_node']:
-            # print(f"Node {node} (Lunch) at time {start_time+time_val//60:02d}:{time_val%60:02d}")
-            route[f"Address {node} [lunch]"] = f"{start_time+time_val//60:02d}:{time_val%60:02d}"
+            route_item["type"] = "Lunch"
+
         elif node == data['dinner_node']:
-            # print(f"Node {node} (Dinner) at time {start_time+time_val//60:02d}:{time_val%60:02d}")
-            route[f"Address {node} [dinner]"] = f"{start_time+time_val//60:02d}:{time_val%60:02d}"
+            route_item["type"] = "Dinner"
+
         else:
-            # print(f"Node {node} at time {start_time+time_val//60:02d}:{time_val%60:02d}")
-            route[f"Address {node}"] = f"{start_time+time_val//60:02d}:{time_val%60:02d}"
+            route_item["type"] = "Attraction"
+
+        route.append(route_item)
         index = solution.Value(routing.NextVar(index))
+        
     return_time = solution.Value(time_dimension.CumulVar(index))
-    # print(f"Return to Node {manager.IndexToNode(index)} at time {start_time+return_time//60:02d}:{return_time%60:02d}")
-    route["Hotel (return)"] = f"{start_time+return_time//60:02d}:{return_time%60:02d}"
+    final = {}
+    final["address"] = data['addresses'][data['depot']]
+    final["postal_code"] = "000000" # TODO: Placeholder for postal code
+    final["arrival_time"] = f"{data['start_hour']+return_time//60:02d}:{return_time%60:02d}"
+    route.append(final)
+    
     return route
