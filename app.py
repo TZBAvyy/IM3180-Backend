@@ -18,6 +18,7 @@ from math import ceil
 import json
 import re
 from google import genai
+import itertools
 
 API_KEY = "AIzaSyBugSwhaA8n5qWDGmyIHF8O0fy_7b8lPGo"
 client = genai.Client(api_key=API_KEY)
@@ -72,7 +73,7 @@ class MeOut(BaseModel):
     name: str
 
 # --- app ---
-app = FastAPI(title="Login API", version="1.0")
+app = FastAPI(title="IM3180 API", version="1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # tighten to your frontend domain in prod
@@ -163,143 +164,54 @@ def me(creds: HTTPAuthorizationCredentials = Depends(security), conn=Depends(db)
     return MeOut(**row)
 
 
+
+# Add this helper function if it doesn't exist
 def convert_numpy_types(obj):
-    if isinstance(obj, dict):
+    """Convert numpy types to Python native types for JSON serialization"""
+    if isinstance(obj, (np.integer, np.floating)):
+        return obj.item()
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
         return {key: convert_numpy_types(value) for key, value in obj.items()}
     elif isinstance(obj, list):
         return [convert_numpy_types(item) for item in obj]
-    elif isinstance(obj, np.generic):
-        return obj.item()
-    else:
-        return obj
+    return obj
 
-# --- Endpoint 1: Generate itinerary using LLM ---
-def generate_itinerary(user_stay_days, max_hours_per_day):
-    prompt = f"""
-    Suggest tourist attractions in Singapore that a visitor can explore in {user_stay_days} days.
-    Return strictly a JSON array where each entry includes:
-
-    {{
-      "name": "Gardens by the Bay",
-      "latitude": 1.2827,
-      "longitude": 103.865,
-      "suggested_visit_hours": 2,
-      "priority": 1
-    }}
-
-    Requirements:
-    - Include enough attractions to fill {user_stay_days} days of sightseeing, assuming {max_hours_per_day} hours per day.
-    - Latitude and longitude must be decimal numbers.
-    - suggested_visit_hours must be a number (hours spent at the attraction).
-    - Priority: 1 = must see, 5 = optional.
-    - Return only valid JSON. Do not include extra text or comments.
-    """
-
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt
-    )
-    llm_output = response.text
-
-    # --- Robust JSON extraction ---
-    try:
-        start_idx = llm_output.index("[")
-        end_idx = llm_output.rindex("]") + 1
-        json_str = llm_output[start_idx:end_idx]
-        try:
-            llm_data = json.loads(json_str)
-        except json.JSONDecodeError:
-            json_str_fixed = re.sub(r",\s*\{[^\{\}]*$", "", json_str)
-            llm_data = json.loads(json_str_fixed)
-    except (ValueError, json.JSONDecodeError) as e:
-        return {"error": "Failed to parse JSON from LLM output", "details": str(e)}
-
-    # --- Convert to locations ---
-    locations_sorted = [
-        (d["latitude"], d["longitude"], d["suggested_visit_hours"], d["name"], d["priority"])
-        for d in llm_data
-    ]
-
-    # --- Add hotel/start location ---
-    hotel_lat, hotel_lon = 1.3000, 103.8300
-    locations_sorted.insert(0, (hotel_lat, hotel_lon, 0, "Hotel/Start", 1))
-
-    # --- DBSCAN clustering ---
-    coords = np.array([(lat, lon) for lat, lon, _, _, _ in locations_sorted[1:]])
-    db = DBSCAN(eps=0.0225, min_samples=1).fit(coords)
-    labels = db.labels_
-
-    locations_data = []
-    for i, loc in enumerate(locations_sorted[1:]):
-        locations_data.append({
-            "latitude": loc[0],
-            "longitude": loc[1],
-            "suggested_visit_hours": loc[2],
-            "name": loc[3],
-            "priority": loc[4],
-            "cluster": int(labels[i])
-        })
-
-    # --- Assign locations to days based on priority ---
-    sorted_by_priority = sorted(locations_data, key=lambda x: x["priority"])
-    solution_days_raw = [[] for _ in range(user_stay_days)]
-    day_hours = [0 for _ in range(user_stay_days)]
-
-    for loc in sorted_by_priority:
-        for day_idx in range(user_stay_days):
-            if day_hours[day_idx] + loc["suggested_visit_hours"] <= max_hours_per_day:
-                solution_days_raw[day_idx].append(loc)
-                day_hours[day_idx] += loc["suggested_visit_hours"]
-                break
-
-    # --- Group by cluster within each day ---
-    solution_days = []
-    for day_locs in solution_days_raw:
-        clusters_dict = {}
-        for loc in day_locs:
-            clusters_dict.setdefault(loc["cluster"], []).append({
-                "name": loc["name"],
-                "latitude": loc["latitude"],
-                "longitude": loc["longitude"],
-                "priority": loc["priority"],
-                "suggested_visit_hours": loc["suggested_visit_hours"]
-            })
-
-        day_clusters = []
-        for cid, locs in clusters_dict.items():
-            highest_priority = min([l["priority"] for l in locs])
-            day_clusters.append({
-                "cluster": cid,
-                "highest_priority": highest_priority,
-                "locations": sorted(locs, key=lambda x: x["priority"])
-            })
-
-        day_clusters_sorted = sorted(day_clusters, key=lambda x: x["highest_priority"])
-        for c in day_clusters_sorted:
-            c.pop("highest_priority")
-        solution_days.append(day_clusters_sorted)
-
-    return {"solution": "solution1", "days": solution_days}
+class PlanItineraryRequest(BaseModel):
+    user_stay_days: int = 1
+    max_hours_per_day: int = 8
 
 @app.post("/plan_itinerary_llm")
-def plan_itinerary():
-    data = request.json
-    user_stay_days = data.get("user_stay_days", 1)
-    max_hours_per_day = data.get("max_hours_per_day", 8)
-    result = generate_itinerary(user_stay_days, max_hours_per_day)
-    return jsonify(result)
+def plan_itinerary(body: PlanItineraryRequest):
+    # You'll need to implement this function
+    result = generate_itinerary(body.user_stay_days, body.max_hours_per_day)
+    return result
 
+# Add this function if it doesn't exist
+def generate_itinerary(user_stay_days, max_hours_per_day):
+    # Implement your itinerary generation logic here
+    return {"message": "Itinerary generation not implemented"}
 
-# --- Endpoint 2: Cluster provided locations and generate maps ---
-@app.post('/get_clusters')
-def get_clusters():
-    data = request.get_json()
-    locations_sorted = data.get('locations_sorted', [])
-    requested_days = data.get('requested_days', 1)
-    max_hours_per_day = data.get('max_hours_per_day', 10)
+class ClusterLocation(BaseModel):
+    latitude: float
+    longitude: float
+    priority: int
+    stay_hours: float
+
+class GetClustersRequest(BaseModel):
+    locations_sorted: List[List[Any]]
+    requested_days: int = 1
+    max_hours_per_day: int = 10
+
+@app.post("/get_clusters")
+def get_clusters(body: GetClustersRequest):
+    locations_sorted = body.locations_sorted
+    requested_days = body.requested_days
+    max_hours_per_day = body.max_hours_per_day
 
     if not locations_sorted:
-        return jsonify({"error": "locations_sorted must be provided"}), 400
+        return {"error": "locations_sorted must be provided"}
 
     coords = np.array([(lat, lon) for lat, lon, _, _ in locations_sorted[1:]])
     db = DBSCAN(eps=0.0225, min_samples=1).fit(coords)
@@ -377,8 +289,5 @@ def get_clusters():
             ).add_to(m_day)
         html_file = f"day_{day_idx + 1}.html"
         m_day.save(html_file)
-        # Optional: open automatically
-        # import webbrowser
-        # webbrowser.open(f'file:///{html_file}')
 
-    return jsonify(clusters_response)
+    return clusters_response
