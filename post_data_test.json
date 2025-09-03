@@ -1,0 +1,5 @@
+{
+    "addresses":["Hall 2","Pioneer Hall","Can 1","Can 2","Hall 5","Hall 6","Crescent Hall"], 
+    "hotel_address":"Hall 1", 
+    "service_times":[30, 120, 120, 120, 30, 60, 45]
+}
