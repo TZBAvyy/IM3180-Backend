@@ -19,6 +19,9 @@ import json
 import re
 from google import genai
 
+API_KEY = "AIzaSyBugSwhaA8n5qWDGmyIHF8O0fy_7b8lPGo"
+client = genai.Client(api_key=API_KEY)
+
 # --- config & DB pool ---
 load_dotenv()  # loads .env if present
 
