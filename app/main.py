@@ -1,11 +1,14 @@
 from fastapi import FastAPI
-from app.routes import trip_optimizer
+from app.routes import trip_optimizer, cluster, gemini
 
 # --- FastAPI main app code---
 
 app = FastAPI()
 
 app.include_router(trip_optimizer.router)
+app.include_router(cluster.router)
+app.include_router(gemini.router)
+
 
 @app.get("/test")
 def test():
