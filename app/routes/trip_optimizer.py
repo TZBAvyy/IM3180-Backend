@@ -14,15 +14,13 @@ def main_get_method():
 # curl -L -v "localhost:8000/trip_optimizer/" -H "Content-Type: application/json" -d @post_data_test.json
 @router.post("/")
 def main_post_method(request: dict):
-    # Required parameters
+    
+    # --- Required parameters ---
     addresses = request.get("addresses", None)
     hotel_address = request.get("hotel_address", None)
     service_times = request.get("service_times", None)
 
-    if addresses is None or hotel_address is None or service_times is None: # If passes => all fields present
-        return {"route":[],"success":False,"error": "Missing required fields"}
-
-    # Optional paramters with default values
+    # --- Optional paramters with default values ---
     start_hour = request.get("start_hour", 9)
     end_hour = request.get("end_hour", 21)
     lunch_start_hour = request.get("lunch_start_hour", 11)
@@ -31,6 +29,9 @@ def main_post_method(request: dict):
     dinner_end_hour = request.get("dinner_end_hour", 19)
 
     # --- Input validation ---
+    if addresses is None or hotel_address is None or service_times is None: # If passes => all fields present
+        return {"route":[],"success":False,"error": "Missing required fields"}
+
     if len(addresses) != len(service_times): # If passes => lengths of address and service_times match
         return {"route":[],"success":False,"error": "Length of addresses and service_times must match"}
     
@@ -56,7 +57,7 @@ def main_post_method(request: dict):
         [28, 24, 20, 19, 22, 18, 13, 0]
     ]
     data["postal_codes"] = ["00000"+str(i) for i in range(len(addresses)+1)] # postal codes for each address
-    # TODO: THIS BLOCK IS HARD CODED MATRIX FOR TESTING, CHANGE ON GOOGLE API INTEGRATION
+    # TODO: THIS BLOCK IS HARD CODED FOR TESTING, CHANGE ON GOOGLE API INTEGRATION
 
     data['addresses'] = [hotel_address] + addresses
     data['service_times'] = [0] + service_times  # time (minutes) spent at each node
@@ -71,6 +72,9 @@ def main_post_method(request: dict):
     
     result = trip_optimizer(data)
     return result
+
+ 
+# --- Trip optimizer algorithm ---
 
 def trip_optimizer(data: dict, lunch_index:int=0, dinner_index:int=1, flip:bool=False): 
     
