@@ -9,6 +9,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.models.auth_models import SignupIn, LoginIn, MeOut, TokenOut
+from app.models.error_models import HTTPError
 from app.db.mysql_pool import get_db
 
 # --- Setup global constants ---
@@ -27,7 +28,20 @@ security = HTTPBearer()
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-@router.post("/signup", response_model=MeOut, status_code=201)
+@router.post("/signup", status_code=201, responses={
+    201: {
+        "model": MeOut,
+        "description": "Successful Creation"
+    },
+    400: {
+        "model": HTTPError,
+        "description": "Password < 8 characters"
+    },
+    409: {
+        "model": HTTPError,
+        "description": "Email already registered"
+    }
+})
 def signup(body: SignupIn, conn=Depends(get_db)):
     if len(body.password) < 8:
         raise HTTPException(400, "Password must be at least 8 characters")
@@ -39,7 +53,16 @@ def signup(body: SignupIn, conn=Depends(get_db)):
         raise HTTPException(409, "Email already registered")
     return MeOut(id=user_id, email=body.email, name=body.name or "")
 
-@router.post("/login", response_model=TokenOut)
+@router.post("/login", responses={
+    200: {
+        "model": TokenOut,
+        "description": "Successful Response"
+    },
+    401: {
+        "model": HTTPError,
+        "description": "Invalid email or password"
+    }
+})
 def login(body: LoginIn, conn=Depends(get_db)):
     row = get_user_by_email(conn, body.email)
     if not row or not verify_password(body.password, row["password_hash"]):
@@ -48,7 +71,20 @@ def login(body: LoginIn, conn=Depends(get_db)):
         raise HTTPException(401,"Invalid email or password")
     return create_token(row["id"], row["email"])
 
-@router.get("/me", response_model=MeOut)
+@router.get("/me", responses={
+    200: {
+        "model": MeOut,
+        "description": "Successful Response"
+    },
+    401: {
+        "model": HTTPError,
+        "description": "Invalid or expired token"
+    },
+    404: {
+        "model": HTTPError,
+        "description": "User not found"
+    }
+})
 def me(creds: HTTPAuthorizationCredentials = Depends(security), conn=Depends(get_db)):
     token = creds.credentials
     try:
