@@ -3,6 +3,7 @@ from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 from fastapi import APIRouter, HTTPException
 
 from app.models.trip_opti_models import TripOptiIn, TripOptiOut
+from app.models.error_models import HTTPError
 
 # --- Trip optimizer route ---
 
@@ -12,8 +13,25 @@ router = APIRouter(prefix="/trip_optimizer", tags=["trip_optimizer"])
 def test():
     return {"message": "Trip Optimizer Endpoint","success": True}
 
-@router.post("/", response_model=TripOptiOut)
-def optimize_trip(request: TripOptiIn):
+@router.post(
+    "/", 
+    response_model=TripOptiOut, 
+    responses={
+        400: {
+            "model": HTTPError,
+            "description": "Missing parameters",
+        },
+        404: {
+            "model": HTTPError,
+            "description": "No solution found"
+        },
+        422: {
+            "model": HTTPError,
+            "description": "Validation Error"
+        }
+    }
+)
+def get_optimized_route(request: TripOptiIn):
 
     # --- Required parameters ---
     addresses = request.addresses
@@ -33,10 +51,10 @@ def optimize_trip(request: TripOptiIn):
         raise HTTPException(status_code=400, detail="Missing required fields")
 
     if len(addresses) != len(service_times): # If passes => lengths of address and service_times match
-        raise HTTPException(status_code=400, detail="Length of addresses and service_times must match")
+        raise HTTPException(status_code=422, detail="Length of addresses and service_times must match")
     
     if len(addresses) < 1: # If passes => at least one address (besides hotel)
-        raise HTTPException(status_code=400, detail="At least one address is required")
+        raise HTTPException(status_code=422, detail="At least one address is required")
     
     # TODO: Put address and hotel verification here (e.g. using GOOGLE API)
     # NEED TO RETRIEVE eatery_nodes and time_matrix FROM GOOGLE API
@@ -149,7 +167,7 @@ def trip_optimizer(data: dict, lunch_index:int=0, dinner_index:int=1, flip:bool=
             trip_optimizer(data=data, lunch_index=lunch_index + 1, dinner_index=lunch_index + 2, flip=False,)
         else:
             print("No solution found!")
-            raise HTTPException(status_code=400, detail="No solution found")
+            raise HTTPException(status_code=404, detail="No solution found")
         
 def _format_solution(routing, manager, time_dimension, solution, data: dict):
     index = routing.Start(0)
