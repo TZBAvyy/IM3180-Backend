@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 import os
 from jwt import JWT
 import bcrypt
+import logging
 import mysql.connector
 from datetime import datetime, timedelta, timezone
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -13,6 +14,8 @@ from app.db.mysql_pool import get_db
 # --- Setup global constants ---
 
 load_dotenv()  # loads .env if present
+
+logger = logging.getLogger("auth")
 
 JWT_ALG = "HS256"
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me")
@@ -41,8 +44,9 @@ def signup(body: SignupIn, conn=Depends(get_db)):
 def login(body: LoginIn, conn=Depends(get_db)):
     row = get_user_by_email(conn, body.email)
     if not row or not verify_password(body.password, row["password_hash"]):
-        # don't reveal which part failed
-        raise HTTPException(401, "Invalid email or password")
+        logger.warning("Failed login attempt for email=%s", email)
+        # Generic message → don’t reveal if email exists
+        raise HTTPException(401,"Invalid email or password")
     return create_token(row["id"], row["email"])
 
 @router.get("/me", response_model=MeOut)
