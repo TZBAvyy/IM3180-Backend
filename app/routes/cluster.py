@@ -3,7 +3,10 @@ from sklearn.cluster import DBSCAN
 import folium
 import itertools
 from math import ceil
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+
+from app.models.cluster_models import ClusterIn, ClusterOut
+from app.models.error_models import HTTPError
 
 # --- Cluster Route ---
 
@@ -13,14 +16,28 @@ router = APIRouter(prefix="/cluster", tags=["cluster"])
 def test():
     return {"message": "Cluster Endpoint","success": True}
 
-@router.post('/')
-def get_clusters(data: dict):
-    locations_sorted = data.get('locations_sorted', [])
-    requested_days = data.get('requested_days', 1)
-    max_hours_per_day = data.get('max_hours_per_day', 10)
+@router.post('/', responses={
+    200: {
+        "model": ClusterOut,
+        "description": "Successful Response"
+    },
+    400: {
+        "model": HTTPError,
+        "description": "Missing required parameters",
+    }
+})
+def get_clusters_given_all_locations(data: ClusterIn):
 
+    # --- Required parameters ---
+    locations_sorted = data.locations_sorted
+
+    # --- Optional paramters with default values ---
+    requested_days = data.requested_days
+    max_hours_per_day = data.max_hours_per_day
+
+    # --- Input validation ---
     if not locations_sorted:
-        return {"error": "locations_sorted must be provided"} # TODO: see how to return 400
+        return HTTPException(status_code=400, detail="Missing required fields")
 
     coords = np.array([(lat, lon) for lat, lon, _, _ in locations_sorted[1:]])
     db = DBSCAN(eps=0.0225, min_samples=1).fit(coords)
@@ -97,7 +114,7 @@ def get_clusters(data: dict):
                 popup=f"Priority {prio}, Stay {stay}h, Cluster {cluster_id}"
             ).add_to(m_day)
         html_file = f"day_{day_idx + 1}.html"
-        m_day.save(html_file)
+        # m_day.save(html_file)
         # Optional: open automatically
         # import webbrowser
         # webbrowser.open(f'file:///{html_file}')

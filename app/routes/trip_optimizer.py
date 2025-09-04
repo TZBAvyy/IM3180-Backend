@@ -13,24 +13,20 @@ router = APIRouter(prefix="/trip_optimizer", tags=["trip_optimizer"])
 def test():
     return {"message": "Trip Optimizer Endpoint","success": True}
 
-@router.post(
-    "/", 
-    response_model=TripOptiOut, 
-    responses={
-        400: {
-            "model": HTTPError,
-            "description": "Missing parameters",
-        },
-        404: {
-            "model": HTTPError,
-            "description": "No solution found"
-        },
-        422: {
-            "model": HTTPError,
-            "description": "Validation Error"
-        }
+@router.post("/", responses={
+    200: {
+        "model": TripOptiOut,
+        "description": "Successful Response"
+    },
+    400: {
+        "model": HTTPError,
+        "description": "Missing required parameters",
+    },
+    404: {
+        "model": HTTPError,
+        "description": "No solution found"
     }
-)
+})
 def get_optimized_route(request: TripOptiIn):
 
     # --- Required parameters ---
