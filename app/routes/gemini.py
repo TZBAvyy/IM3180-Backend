@@ -11,13 +11,13 @@ from dotenv import load_dotenv
 load_dotenv()
 API_KEY = os.getenv("GEMINI_API_KEY", "get-your-own-key")
 
+# --- LLM Route  ---
+
 router = APIRouter(prefix="/llm", tags=["llm"])
 
 @router.get("/")
 def test():
     return {"message": "Gemini LLM Endpoint","success": True}
-
-# --- Endpoint 1: Generate itinerary using LLM ---
 
 @router.post("/")
 def plan_itinerary(request: dict):
@@ -26,15 +26,7 @@ def plan_itinerary(request: dict):
     result = generate_itinerary(user_stay_days, max_hours_per_day)
     return result
 
-def convert_numpy_types(obj):
-    if isinstance(obj, dict):
-        return {key: convert_numpy_types(value) for key, value in obj.items()}
-    elif isinstance(obj, list):
-        return [convert_numpy_types(item) for item in obj]
-    elif isinstance(obj, np.generic):
-        return obj.item()
-    else:
-        return obj
+# --- Core LLM + Itinerary Logic ---
 
 def generate_itinerary(user_stay_days, max_hours_per_day):
     client = genai.Client(api_key=API_KEY)
@@ -143,3 +135,15 @@ def generate_itinerary(user_stay_days, max_hours_per_day):
         solution_days.append(day_clusters_sorted)
 
     return {"solution": "solution1", "days": solution_days}
+
+# --- Helper Functions ---
+
+def convert_numpy_types(obj):
+    if isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy_types(item) for item in obj]
+    elif isinstance(obj, np.generic):
+        return obj.item()
+    else:
+        return obj

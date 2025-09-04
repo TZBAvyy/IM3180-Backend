@@ -5,13 +5,14 @@ import itertools
 from math import ceil
 from fastapi import APIRouter
 
+# --- Cluster Route ---
+
 router = APIRouter(prefix="/cluster", tags=["cluster"])
 
 @router.get("/")
 def test():
     return {"message": "Cluster Endpoint","success": True}
 
-# --- Endpoint 2: Cluster provided locations and generate maps ---
 @router.post('/')
 def get_clusters(data: dict):
     locations_sorted = data.get('locations_sorted', [])
@@ -103,6 +104,7 @@ def get_clusters(data: dict):
 
     return clusters_response
 
+# --- Helper Functions ---
 
 def convert_numpy_types(obj):
     if isinstance(obj, dict):
