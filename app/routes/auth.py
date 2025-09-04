@@ -94,7 +94,14 @@ def create_user(conn, email: str, name: str, password: str):
         )
         user_id = cur.lastrowid
         return user_id
-    except mysql.connector.errors.IntegrityError:
+    except mysql.connector.errors.IntegrityError as e:
+        logger.error(
+            "MySQL error while creating user (email=%s): code=%s, sqlstate=%s, msg=%s",
+            email,
+            getattr(e, "errno", None),
+            getattr(e, "sqlstate", None),
+            getattr(e, "msg", str(e)),
+        )
         return None
     finally:
         cur.close()
