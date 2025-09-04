@@ -4,6 +4,12 @@ from sklearn.cluster import DBSCAN
 import json
 import re
 import numpy as np
+import os
+from dotenv import load_dotenv
+
+# --- Load environment variables ---
+load_dotenv()
+API_KEY = os.getenv("GEMINI_API_KEY", "get-your-own-key")
 
 router = APIRouter(prefix="/llm", tags=["llm"])
 
@@ -31,7 +37,6 @@ def convert_numpy_types(obj):
         return obj
 
 def generate_itinerary(user_stay_days, max_hours_per_day):
-    API_KEY = "AIzaSyBugSwhaA8n5qWDGmyIHF8O0fy_7b8lPGo"
     client = genai.Client(api_key=API_KEY)
     prompt = f"""
     Suggest tourist attractions in Singapore that a visitor can explore in {user_stay_days} days.
