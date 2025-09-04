@@ -1,6 +1,6 @@
 from dotenv import load_dotenv
 import os
-from jwt import JWT
+import jwt
 import bcrypt
 import logging
 import mysql.connector
@@ -22,7 +22,6 @@ SECRET_KEY = os.getenv("SECRET_KEY", "change-me")
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "60"))
 
 security = HTTPBearer()
-jwt_instance = JWT()
 
 # --- Auth Routes ---
 
@@ -44,7 +43,7 @@ def signup(body: SignupIn, conn=Depends(get_db)):
 def login(body: LoginIn, conn=Depends(get_db)):
     row = get_user_by_email(conn, body.email)
     if not row or not verify_password(body.password, row["password_hash"]):
-        logger.warning("Failed login attempt for email=%s", email)
+        logger.warning("Failed login attempt for email=%s", body.email)
         # Generic message → don’t reveal if email exists
         raise HTTPException(401,"Invalid email or password")
     return create_token(row["id"], row["email"])
@@ -53,7 +52,7 @@ def login(body: LoginIn, conn=Depends(get_db)):
 def me(creds: HTTPAuthorizationCredentials = Depends(security), conn=Depends(get_db)):
     token = creds.credentials
     try:
-        payload = jwt_instance.decode(token, SECRET_KEY, alg=JWT_ALG)
+        payload = jwt.decode(token, SECRET_KEY, alg=JWT_ALG)
         uid = int(payload["sub"])
     except Exception:
         raise HTTPException(401, "Invalid or expired token")
@@ -79,7 +78,7 @@ def verify_password(raw: str, hashed: str) -> bool:
 def create_token(user_id: int, email: str) -> TokenOut:
     exp = datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRE_MINUTES)
     payload = {"sub": str(user_id), "email": email, "exp": exp}
-    token = jwt_instance.encode(payload, SECRET_KEY, alg=JWT_ALG)
+    token = jwt.encode(payload, SECRET_KEY, algorithm=JWT_ALG)
     return TokenOut(access_token=token, expires_in=JWT_EXPIRE_MINUTES * 60)
 
 def get_user_by_email(conn, email: str):
