@@ -1,11 +1,14 @@
 from google import genai 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from sklearn.cluster import DBSCAN
 import json
 import re
 import numpy as np
 import os
 from dotenv import load_dotenv
+
+from app.models.gemini_models import PlanItinIn, PlanItinOut
+from app.models.error_models import HTTPError
 
 # --- Load environment variables ---
 load_dotenv()
@@ -19,10 +22,23 @@ router = APIRouter(prefix="/llm", tags=["llm"])
 def test():
     return {"message": "Gemini LLM Endpoint","success": True}
 
-@router.post("/")
-def plan_itinerary(request: dict):
-    user_stay_days = request.get("user_stay_days", 1)
-    max_hours_per_day = request.get("max_hours_per_day", 8)
+@router.post("/", responses={
+    200: {
+        "model": PlanItinOut,
+        "description": "Successful Response"
+    },
+    500: {
+        "model": HTTPError,
+        "description": "LLM Unexpected Output"
+    },
+    503: {
+        "model": HTTPError,
+        "description": "LLM Model Overloaded"
+    }
+})
+def plan_itinerary(request: PlanItinIn):
+    user_stay_days = request.user_stay_days
+    max_hours_per_day = request.max_hours_per_day
     result = generate_itinerary(user_stay_days, max_hours_per_day)
     return result
 
@@ -67,7 +83,7 @@ def generate_itinerary(user_stay_days, max_hours_per_day):
             json_str_fixed = re.sub(r",\s*\{[^\{\}]*$", "", json_str)
             llm_data = json.loads(json_str_fixed)
     except (ValueError, json.JSONDecodeError) as e:
-        return {"error": "Failed to parse JSON from LLM output", "details": str(e)}
+        raise HTTPException(status_code=500, detail=f"Failed to parse JSON from LLM output. Error: {e}")
 
     # --- Convert to locations ---
     locations_sorted = [
@@ -134,7 +150,7 @@ def generate_itinerary(user_stay_days, max_hours_per_day):
             c.pop("highest_priority")
         solution_days.append(day_clusters_sorted)
 
-    return {"solution": "solution1", "days": solution_days}
+    return {"days": solution_days}
 
 # --- Helper Functions ---
 
