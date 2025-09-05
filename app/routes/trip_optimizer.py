@@ -1,42 +1,56 @@
 # Algorithm function for trip optimizer
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+
+from app.models.trip_opti_models import TripOptiIn, TripOptiOut
+from app.models.error_models import HTTPError
 
 # --- Trip optimizer route ---
 
 router = APIRouter(prefix="/trip_optimizer", tags=["trip_optimizer"])
 
 @router.get("/")
-def main_get_method():
+def test():
     return {"message": "Trip Optimizer Endpoint","success": True}
 
-# test with:
-# curl -L -v "localhost:8000/trip_optimizer/" -H "Content-Type: application/json" -d @post_data_test.json
-@router.post("/")
-def main_post_method(request: dict):
-    
+@router.post("/", responses={
+    200: {
+        "model": TripOptiOut,
+        "description": "Successful Response"
+    },
+    400: {
+        "model": HTTPError,
+        "description": "Missing required parameters",
+    },
+    404: {
+        "model": HTTPError,
+        "description": "No solution found"
+    }
+})
+def get_optimized_route(request: TripOptiIn):
+
     # --- Required parameters ---
-    addresses = request.get("addresses", None)
-    hotel_address = request.get("hotel_address", None)
-    service_times = request.get("service_times", None)
+    addresses = request.addresses
+    hotel_address = request.hotel_address
+    service_times = request.service_times
 
     # --- Optional paramters with default values ---
-    start_hour = request.get("start_hour", 9)
-    end_hour = request.get("end_hour", 21)
-    lunch_start_hour = request.get("lunch_start_hour", 11)
-    lunch_end_hour = request.get("lunch_end_hour", 13)
-    dinner_start_hour = request.get("dinner_start_hour", 17)
-    dinner_end_hour = request.get("dinner_end_hour", 19)
+    start_hour = request.start_hour
+    end_hour = request.end_hour
+    lunch_start_hour = request.lunch_start_hour
+    lunch_end_hour = request.lunch_end_hour
+    dinner_start_hour = request.dinner_start_hour
+    dinner_end_hour = request.dinner_end_hour
 
     # --- Input validation ---
     if addresses is None or hotel_address is None or service_times is None: # If passes => all fields present
-        return {"route":[],"success":False,"error": "Missing required fields"}
+        raise HTTPException(status_code=400, detail="Missing required fields")
 
     if len(addresses) != len(service_times): # If passes => lengths of address and service_times match
-        return {"route":[],"success":False,"error": "Length of addresses and service_times must match"}
+        raise HTTPException(status_code=422, detail="Length of addresses and service_times must match")
     
     if len(addresses) < 1: # If passes => at least one address (besides hotel)
-        return {"route":[],"success":False,"error": "At least two eatery nodes are required"}
+        raise HTTPException(status_code=422, detail="At least one address is required")
     
     # TODO: Put address and hotel verification here (e.g. using GOOGLE API)
     # NEED TO RETRIEVE eatery_nodes and time_matrix FROM GOOGLE API
@@ -71,7 +85,7 @@ def main_post_method(request: dict):
     data['dinner_end_hour'] = dinner_end_hour
     
     result = trip_optimizer(data)
-    return result
+    return {"route":result}
 
  
 # --- Trip optimizer algorithm ---
@@ -134,7 +148,7 @@ def trip_optimizer(data: dict, lunch_index:int=0, dinner_index:int=1, flip:bool=
     # --- Print solution ---
     if solution:
         route = _format_solution(routing, manager, time_dimension, solution, data)
-        return {"route":route,"success":True,"error":None}
+        return route
     else:
         # 
         if not flip:
@@ -149,7 +163,7 @@ def trip_optimizer(data: dict, lunch_index:int=0, dinner_index:int=1, flip:bool=
             trip_optimizer(data=data, lunch_index=lunch_index + 1, dinner_index=lunch_index + 2, flip=False,)
         else:
             print("No solution found!")
-            return {"route":[],"success":False,"error": "No solution found"}
+            raise HTTPException(status_code=404, detail="No solution found")
         
 def _format_solution(routing, manager, time_dimension, solution, data: dict):
     index = routing.Start(0)
