@@ -52,7 +52,7 @@ def login(body: LoginIn, conn=Depends(get_db)):
 def me(creds: HTTPAuthorizationCredentials = Depends(security), conn=Depends(get_db)):
     token = creds.credentials
     try:
-        payload = jwt.decode(token, SECRET_KEY, alg=JWT_ALG)
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[JWT_ALG])
         uid = int(payload["sub"])
     except Exception:
         raise HTTPException(401, "Invalid or expired token")
