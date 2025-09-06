@@ -6,25 +6,41 @@ Repository for NTU IM3180: Design &amp; Innovation Project
 ### VSCode Python Extension Method
 > In the search bar at the top middle of the window
 1. Type "\> Python: Create Environment"
-1. Click "Venv" for environment type
-1. Click whatever Python version you have (should be fine >3.x)
-1. Click "requirements.txt" for dependacies to install and give it a bit
-1. Kill and refresh terminal in VSCode, its working if your terminal looks like:
+2. Click "Venv" for environment type
+3. Click whatever Python version you have (should be fine >3.x)
+4. Click "requirements.txt" for dependacies to install and give it a bit
+5. Kill and refresh terminal in VSCode, its working if your terminal looks like:
 <pre><b>(.venv)</b> C:\...</pre>
-1. Run ```fastapi dev app/main.py``` in the console
+6. Run below in the console
+```
+fastapi dev app/main.py
+``` 
 
 ### CLI Method
 1. Create a python venv  
-```py -m venv venv```
+```
+python -m venv venv
+```
 
-1. Active the venv  
-```venv\Scripts\activate``` (Windows)  
-```source venv/bin/activate``` (macOS/Linux)
+2. Active the venv
+> a. (Windows)  
+```cmd
+venv\Scripts\activate
+```
+> b. (macOS/Linux)
+```bash
+source venv/bin/activate
+```
 
-1. Install required dependencies into venv  
-```pip install -r requirements.txt```
+3. Install required dependencies into venv  
+```
+pip install -r requirements.txt
+```
 
-1. Run ```fastapi dev app/main.py``` in the console
+4. Run below in the console
+```
+fastapi dev app/main.py
+``` 
 
 
 ## Documentation
@@ -32,7 +48,7 @@ Repository for NTU IM3180: Design &amp; Innovation Project
 ### /trip_optimizer/
 #### JSON Input
 Example:
-```
+```json
 {
     "addresses":["Hall 2","Pioneer Hall","Can 1","Can 2","Hall 5","Hall 6","Crescent Hall"], 
     "hotel_address":"Hall 1", 
@@ -60,7 +76,7 @@ Example:
 
 #### JSON Output
 Example
-```
+```json
 {   
     "route":[
         {"address":"Hall 1","postal_code":"000000","arrival_time":"09:00","type":"Start"},
@@ -72,10 +88,6 @@ Example
         {"address":"Can 2","postal_code":"000004","arrival_time":"17:37","type":"Dinner"},
         {"address":"Pioneer Hall","postal_code":"000002","arrival_time":"20:04","type":"Attraction"},
         {"address":"Hall 1","postal_code":"000000","arrival_time":"20:27","type":"End"}
-    ],
-    "success":true,
-    "error":null
-} 
-OR
-{"route":[],"success":false,"error": "Length of addresses and service_times must match"}
+    ]
+}
 ```
