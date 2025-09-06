@@ -1,5 +1,6 @@
-# IM3180
-Repository for NTU IM3180: Design &amp; Innovation Project
+# Trip Optimizer (IM3180 Project) Repository
+NTU IM3180: Design &amp; Innovation Project, Group IE04, AY2025/2026  
+Repository for Backend API of the Trip Optimizer Web Application
 
 ## Quickstart:
 
