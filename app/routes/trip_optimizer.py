@@ -1,6 +1,8 @@
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 from fastapi import APIRouter, HTTPException
 import requests
+import os
+from dotenv import load_dotenv
 
 from app.models.trip_opti_models import TripOptiIn, TripOptiOut
 from app.models.error_models import HTTPError
@@ -10,76 +12,19 @@ from app.models.error_models import HTTPError
 
 router = APIRouter(prefix="/trip_optimizer", tags=["trip_optimizer"])
 
-GOOGLE_API_KEY = "AIzaSyDY4PlcU30WMW6SxMZ_Lw6MYb9mlxS5HEE"
+load_dotenv()
 
-
-def get_time_matrix(coords, api_key=GOOGLE_API_KEY):
-    """
-    Given list of coordinate strings ["lat,lng", ...], returns 2D time matrix of durations in minutes.
-    """
-    origins = "|".join(coords)
-    destinations = origins
-    url = "https://maps.googleapis.com/maps/api/distancematrix/json"
-    params = {
-        "origins": origins,
-        "destinations": destinations,
-        "key": api_key,
-        "mode": "driving",
-        "departure_time": "now"
-    }
-    response = requests.get(url, params=params)
-    if response.status_code != 200:
-        raise Exception(f"Distance Matrix API error: {response.status_code} {response.text}")
-    data = response.json()
-    if data["status"] != "OK":
-        raise Exception(f"Distance Matrix API status error: {data['status']}")
-
-    time_matrix = []
-    for row in data["rows"]:
-        durations_row = []
-        for element in row["elements"]:
-            if element["status"] == "OK":
-                durations_row.append(element["duration"]["value"] // 60)  # seconds to minutes
-            else:
-                durations_row.append(None)
-        time_matrix.append(durations_row)
-    return time_matrix
-
-
-def identify_eateries(coords, api_key=GOOGLE_API_KEY):
-    """
-    Identify eateries (restaurant, cafe, food, etc.) among coords using Google Places Nearby Search API.
-    Returns list of indexes corresponding to eatery coordinates.
-    """
-    eatery_types = {"restaurant", "cafe", "food", "bakery", "meal_takeaway", "meal_delivery"}
-    eatery_indexes = []
-
-    for idx, coord in enumerate(coords):
-        lat, lng = coord.split(",")
-        url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-        params = {
-            "location": f"{lat},{lng}",
-            "radius": 100,  # meters
-            "key": api_key,
-            "type": "restaurant"  # general eatery type for narrowing search
-        }
-        response = requests.get(url, params=params)
-        if response.status_code != 200:
-            raise Exception(f"Places API error at index {idx}: {response.status_code} {response.text}")
-        data = response.json()
-        if data.get("status") == "OK":
-            for place in data.get("results", []):
-                place_types = set(place.get("types", []))
-                if eatery_types.intersection(place_types):
-                    eatery_indexes.append(idx)
-                    break  # no need to check more places here
-    return eatery_indexes
-
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY","change-this") 
 
 @router.get("/")
 def test():
     return {"message": "Trip Optimizer Endpoint", "success": True}
 
+@router.post("/test_google")
+def test_google_api(request: dict):
+    coords = request.get("origins")
+    result = get_time_matrix(coords)
+    return result
 
 @router.post("/", responses={
     200: {"model": TripOptiOut, "description": "Successful Response"},
@@ -87,9 +32,10 @@ def test():
     404: {"model": HTTPError, "description": "No solution found"}
 })
 def get_optimized_route(request: TripOptiIn):
+
     # --- Required parameters ---
-    addresses = request.addresses  # List of coordinate strings e.g. ["1.234,103.456", ...]
-    hotel_address = request.hotel_address  # Coordinate string e.g. "1.300,103.800"
+    addresses = request.addresses  
+    hotel_address = request.hotel_address  
     service_times = request.service_times
 
     # --- Optional paramters with default values ---
@@ -251,3 +197,65 @@ def _format_solution(routing, manager, time_dimension, solution, data: dict):
     route.append(final)
 
     return route
+
+def get_time_matrix(coords: list[dict[str, float]]) -> list[list]:
+    """
+    Given list of coordinate strings [{latitude:xx.xx, longitude:xx.xx}], 
+    returns 2D time matrix of durations in minutes.
+    """
+    N = len(coords)
+    origins = coords
+    destinations = origins
+    url = "https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix"
+    headers = {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': GOOGLE_API_KEY,
+        'X-Goog-FieldMask': 'originIndex,destinationIndex,duration,distanceMeters,status,condition'
+    }
+    params = {
+        "origins": origins,
+        "destinations": destinations,
+        "travelMode": "DRIVE",
+        "routingPreference": "TRAFFIC_AWARE"
+    }
+    response = requests.post(url=url,headers=headers,json=params)
+    if response.status_code != 200:
+        raise Exception(f"Distance Matrix API error: {response.status_code} {response.text}")
+    data = response.json()
+
+    time_matrix = [[0 for _ in range(N)] for _ in range(N)] # Create 2d NxN array
+    
+    for entry in data:
+        time_matrix[entry['originIndex']][entry['destinationIndex']] = int(entry['duration'][:-1])
+
+    return time_matrix
+
+
+def identify_eateries(coords, api_key=GOOGLE_API_KEY):
+    """
+    Identify eateries (restaurant, cafe, food, etc.) among coords using Google Places Nearby Search API.
+    Returns list of indexes corresponding to eatery coordinates.
+    """
+    eatery_types = {"restaurant", "cafe", "food", "bakery", "meal_takeaway", "meal_delivery"}
+    eatery_indexes = []
+
+    for idx, coord in enumerate(coords):
+        lat, lng = coord.split(",")
+        url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+        params = {
+            "location": f"{lat},{lng}",
+            "radius": 100,  # meters
+            "key": api_key,
+            "type": "restaurant"  # general eatery type for narrowing search
+        }
+        response = requests.get(url, params=params)
+        if response.status_code != 200:
+            raise Exception(f"Places API error at index {idx}: {response.status_code} {response.text}")
+        data = response.json()
+        if data.get("status") == "OK":
+            for place in data.get("results", []):
+                place_types = set(place.get("types", []))
+                if eatery_types.intersection(place_types):
+                    eatery_indexes.append(idx)
+                    break  # no need to check more places here
+    return eatery_indexes

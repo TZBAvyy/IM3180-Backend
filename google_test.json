@@ -1,0 +1,24 @@
+{
+  "origins": [
+    {
+      "waypoint": {
+        "location": {
+          "latLng": {
+            "latitude": 37.420761,
+            "longitude": -122.081356
+          }
+        }
+      }
+    },
+    {
+      "waypoint": {
+        "location": {
+          "latLng": {
+            "latitude": 37.403184,
+            "longitude": -122.097371
+          }
+        }
+      }
+    }
+  ]
+}
