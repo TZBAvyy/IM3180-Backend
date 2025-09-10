@@ -220,7 +220,7 @@ def get_time_matrix(coords: list[dict[str, float]]) -> list[list]:
     }
     response = requests.post(url=url,headers=headers,json=params)
     if response.status_code != 200:
-        raise Exception(f"Distance Matrix API error: {response.status_code} {response.text}")
+        raise HTTPException(status_code=response.status_code,detail=response.text)
     data = response.json()
 
     time_matrix = [[0 for _ in range(N)] for _ in range(N)] # Create 2d NxN array
