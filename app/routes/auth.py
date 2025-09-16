@@ -1,4 +1,3 @@
-from dotenv import load_dotenv
 import os
 import jwt
 import bcrypt
@@ -13,8 +12,6 @@ from app.models.error_models import HTTPError
 from app.db.mysql_pool import get_db
 
 # --- Setup global constants ---
-
-load_dotenv()  # loads .env if present
 
 logger = logging.getLogger("auth")
 

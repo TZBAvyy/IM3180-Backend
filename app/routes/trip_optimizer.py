@@ -1,37 +1,39 @@
-# Algorithm function for trip optimizer
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 from fastapi import APIRouter, HTTPException
+import requests
+import os
 
 from app.models.trip_opti_models import TripOptiIn, TripOptiOut
 from app.models.error_models import HTTPError
+
 
 # --- Trip optimizer route ---
 
 router = APIRouter(prefix="/trip_optimizer", tags=["trip_optimizer"])
 
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY","change-this") 
+
 @router.get("/")
 def test():
-    return {"message": "Trip Optimizer Endpoint","success": True}
+    return {"message": "Trip Optimizer Endpoint", "success": True}
+
+@router.post("/test_google")
+def test_google_api(request: dict):
+    places = request.get("placeIds")
+    result = identify_eateries(places)
+    return result
 
 @router.post("/", responses={
-    200: {
-        "model": TripOptiOut,
-        "description": "Successful Response"
-    },
-    400: {
-        "model": HTTPError,
-        "description": "Missing required parameters",
-    },
-    404: {
-        "model": HTTPError,
-        "description": "No solution found"
-    }
+    200: {"model": TripOptiOut, "description": "Successful Response"},
+    400: {"model": HTTPError, "description": "Missing required parameters"},
+    404: {"model": HTTPError, "description": "No solution found"},
+    500: {"model": HTTPError, "description": "Google API error"}
 })
 def get_optimized_route(request: TripOptiIn):
 
     # --- Required parameters ---
-    addresses = request.addresses
-    hotel_address = request.hotel_address
+    addresses = request.addresses  
+    hotel_address = request.hotel_address  
     service_times = request.service_times
 
     # --- Optional paramters with default values ---
@@ -43,55 +45,48 @@ def get_optimized_route(request: TripOptiIn):
     dinner_end_hour = request.dinner_end_hour
 
     # --- Input validation ---
-    if addresses is None or hotel_address is None or service_times is None: # If passes => all fields present
+    if addresses is None or hotel_address is None or service_times is None:
         raise HTTPException(status_code=400, detail="Missing required fields")
-
-    if len(addresses) != len(service_times): # If passes => lengths of address and service_times match
+    if len(addresses) != len(service_times):
         raise HTTPException(status_code=422, detail="Length of addresses and service_times must match")
-    
-    if len(addresses) < 1: # If passes => at least one address (besides hotel)
+    if len(addresses) < 1:
         raise HTTPException(status_code=422, detail="At least one address is required")
-    
-    # TODO: Put address and hotel verification here (e.g. using GOOGLE API)
-    # NEED TO RETRIEVE eatery_nodes and time_matrix FROM GOOGLE API
 
-    # --- Format Settings for Optimizer ---
+    # --- Google API calls for Time Matrix and Eatery ID ---
+    places = [hotel_address] + addresses
+
+    try:
+        time_matrix = get_time_matrix(places)
+        identify_result = identify_eateries(places)
+        eateries = identify_result[1]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Google Maps API error: {e}")
+
+    if len(eateries) < 2:
+        raise HTTPException(status_code=422, detail="At least two eateries (restaurant, cafe, food court, etc.) are required among the addresses")
+
+    # --- Prepare data for trip optimizer ---
     data = {}
-
-    # TODO: HIS BLOCK IS HARD CODED FOR TESTING, CHANGE ON GOOGLE API INTEGRATION
-    data['eatery_nodes'] = [3, 4] # indexes of lunch and dinner spots in the time_matrix
-    data['time_matrix'] = [ 
-        [0, 12, 23, 34, 45, 21, 32, 28], # time (minutes) between each pair of nodes 
-        [12, 0, 17, 29, 38, 19, 27, 24], # (e.g data['time_matrix'][i][j] is time taken to travel from node i to j)
-        [23, 17, 0, 15, 27, 22, 18, 20],
-        [34, 29, 15, 0, 16, 25, 21, 19],
-        [45, 38, 27, 16, 0, 30, 24, 22],
-        [21, 19, 22, 25, 30, 0, 14, 18],
-        [32, 27, 18, 21, 24, 14, 0, 13],
-        [28, 24, 20, 19, 22, 18, 13, 0]
-    ]
-    data["postal_codes"] = ["00000"+str(i) for i in range(len(addresses)+1)] # postal codes for each address
-    # TODO: THIS BLOCK IS HARD CODED FOR TESTING, CHANGE ON GOOGLE API INTEGRATION
-
-    data['addresses'] = [hotel_address] + addresses
-    data['service_times'] = [0] + service_times  # time (minutes) spent at each node
+    data['address_names'] = identify_result[0]
+    data['eatery_nodes'] = eateries
+    data['time_matrix'] = time_matrix
+    data['placeIDs'] = places
+    data['service_times'] = [0] + service_times
     data['num_vehicles'] = 1
-    data['depot'] = 0  # start and end at node 0
+    data['depot'] = 0
     data['start_hour'] = start_hour
     data['end_hour'] = end_hour
     data['lunch_start_hour'] = lunch_start_hour
     data['lunch_end_hour'] = lunch_end_hour
     data['dinner_start_hour'] = dinner_start_hour
     data['dinner_end_hour'] = dinner_end_hour
-    
+
     result = trip_optimizer(data)
-    return {"route":result}
+    return {"route": result}
 
- 
 # --- Trip optimizer algorithm ---
+def trip_optimizer(data: dict, lunch_index: int = 0, dinner_index: int = 1, flip: bool = False):
 
-def trip_optimizer(data: dict, lunch_index:int=0, dinner_index:int=1, flip:bool=False): 
-    
     # --- Input validation ---
     if len(data['eatery_nodes']) < 2:
         print("At least two eatery nodes are required.")
@@ -117,26 +112,26 @@ def trip_optimizer(data: dict, lunch_index:int=0, dinner_index:int=1, flip:bool=
     routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
 
     # --- Add Time dimension (accumulated time along route) ---
-    horizon = (data['end_hour']-data['start_hour']) * 60  # horizon is total minutes in the day 
+    horizon = (data['end_hour'] - data['start_hour']) * 60
     routing.AddDimension(
         transit_callback_index,
-        slack_max=0,  # no waiting
+        slack_max=0,   # no waiting
         capacity=horizon,
         fix_start_cumul_to_zero=True,
         name='Time')
     time_dimension = routing.GetDimensionOrDie('Time')
 
     # --- Lunch spot constraint ---
-    lunch_index = manager.NodeToIndex(data['lunch_node'])
-    time_dimension.CumulVar(lunch_index).SetRange(
-        int((data['lunch_start_hour']-data['start_hour'])*60), 
-        int((data['lunch_end_hour']-data['start_hour'])*60)) 
+    lunch_index_node = manager.NodeToIndex(data['lunch_node'])
+    time_dimension.CumulVar(lunch_index_node).SetRange(
+        int((data['lunch_start_hour'] - data['start_hour']) * 60),
+        int((data['lunch_end_hour'] - data['start_hour']) * 60))
 
      # --- Dinner spot constraint ---
-    dinner_index = manager.NodeToIndex(data['dinner_node'])
-    time_dimension.CumulVar(dinner_index).SetRange(
-        int((data['dinner_start_hour']-data['start_hour'])*60), 
-        int((data['dinner_end_hour']-data['start_hour'])*60))  
+    dinner_index_node = manager.NodeToIndex(data['dinner_node'])
+    time_dimension.CumulVar(dinner_index_node).SetRange(
+        int((data['dinner_start_hour'] - data['start_hour']) * 60),
+        int((data['dinner_end_hour'] - data['start_hour']) * 60))
 
     # --- Solve ---
     search_parameters = pywrapcp.DefaultRoutingSearchParameters()
@@ -150,21 +145,21 @@ def trip_optimizer(data: dict, lunch_index:int=0, dinner_index:int=1, flip:bool=
         route = _format_solution(routing, manager, time_dimension, solution, data)
         return route
     else:
-        # 
         if not flip:
-            trip_optimizer(data=data, lunch_index=dinner_index, dinner_index=lunch_index, flip=True)
+            return trip_optimizer(data=data, lunch_index=dinner_index, dinner_index=lunch_index, flip=True)
         else:
             lunch_index, dinner_index = dinner_index, lunch_index
 
-        if dinner_index+1 < len(data['eatery_nodes']):
-            trip_optimizer(data=data, lunch_index=lunch_index, dinner_index=dinner_index + 1, flip=False)
-            
-        elif lunch_index+1 < len(data['eatery_nodes']) - 1:
-            trip_optimizer(data=data, lunch_index=lunch_index + 1, dinner_index=lunch_index + 2, flip=False,)
+        if dinner_index + 1 < len(data['eatery_nodes']):
+            return trip_optimizer(data=data, lunch_index=lunch_index, dinner_index=dinner_index + 1, flip=False)
+
+        elif lunch_index + 1 < len(data['eatery_nodes']) - 1:
+            return trip_optimizer(data=data, lunch_index=lunch_index + 1, dinner_index=lunch_index + 2, flip=False)
         else:
             print("No solution found!")
             raise HTTPException(status_code=404, detail="No solution found")
-        
+
+
 def _format_solution(routing, manager, time_dimension, solution, data: dict):
     index = routing.Start(0)
     route = []
@@ -172,31 +167,102 @@ def _format_solution(routing, manager, time_dimension, solution, data: dict):
         node = manager.IndexToNode(index)
         time_val = solution.Value(time_dimension.CumulVar(index))
         route_item = {}
-        route_item["address"] = data['addresses'][node]
-        route_item["postal_code"] = data['postal_codes'][node]
-        route_item["arrival_time"] = f"{data['start_hour']+time_val//60:02d}:{time_val%60:02d}"
+        route_item["name"] = data['address_names'][node]
+        route_item["placeID"] = data['placeIDs'][node]
+        route_item["arrival_time"] = f"{data['start_hour'] + time_val // 60:02d}:{time_val % 60:02d}"
 
         if node == data['depot']:
             route_item["type"] = "Start"
-
         elif node == data['lunch_node']:
             route_item["type"] = "Lunch"
-
         elif node == data['dinner_node']:
             route_item["type"] = "Dinner"
-
         else:
             route_item["type"] = "Attraction"
 
         route.append(route_item)
         index = solution.Value(routing.NextVar(index))
-        
+
     return_time = solution.Value(time_dimension.CumulVar(index))
-    final = {}
-    final["address"] = data['addresses'][data['depot']]
-    final["postal_code"] = "000000" # TODO: Placeholder for postal code
-    final["arrival_time"] = f"{data['start_hour']+return_time//60:02d}:{return_time%60:02d}"
-    final["type"] = "End"
+    final = {
+        "name": data['address_names'][data['depot']],
+        "placeID": data['placeIDs'][data['depot']],
+        "arrival_time": f"{data['start_hour'] + return_time // 60:02d}:{return_time % 60:02d}",
+        "type": "End"
+    }
     route.append(final)
-    
+
     return route
+
+def get_time_matrix(places: list[str]) -> list[list]:
+    """
+    Given list of place ids (GoogleMaps IDs), returns 2D time matrix of durations in minutes.
+    """
+    N = len(places)
+    origins = [{"waypoint":{"placeId":place_id}} for place_id in places]
+    destinations = origins
+    url = "https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix"
+    headers = {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': GOOGLE_API_KEY,
+        'X-Goog-FieldMask': 'originIndex,destinationIndex,duration,condition,status'
+    }
+    params = {
+        "origins": origins,
+        "destinations": destinations,
+        "travelMode": "TRANSIT",
+    }
+    response = requests.post(url=url,headers=headers,json=params)
+    if response.status_code != 200:
+        raise HTTPException(status_code=response.status_code,detail=response.text)
+    data = response.json()
+
+    time_matrix = [[0 for _ in range(N)] for _ in range(N)] # Initialize 2d NxN array
+
+    for entry in data:
+        if len(entry['status']) != 0:
+            raise HTTPException(status_code=500, detail=f"Distance Matrix API error: {entry['status']}")
+        
+        elif entry['originIndex'] == entry['destinationIndex']:
+            entry['duration'] = 0  # Zero duration for same origin and destination
+
+        elif entry['condition'] == "ROUTE_NOT_FOUND":
+            raise HTTPException(status_code=500, detail="No route found between some locations")
+        
+        else:
+            time_matrix[entry['originIndex']][entry['destinationIndex']] = int(entry['duration'][:-1])//60      
+
+    return time_matrix
+
+
+def identify_eateries(places: list[str]) -> list[list[str],list[int]]:
+    """
+    Identify eateries (restaurant, cafe, food, etc.) among coords using Google Places Nearby Search API.
+    Returns list of indexes corresponding to eatery coordinates.
+    """
+    EATERY_TYPES = ["restaurant", "diner", "food_court"]
+    eatery_indexes = []
+    place_names = []
+
+    N = len(places)
+
+    for i in range(N):
+        url = f"https://places.googleapis.com/v1/places/{places[i]}"
+        headers = {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': GOOGLE_API_KEY,
+            'X-Goog-FieldMask': 'id,displayName,types'
+        }
+        response = requests.get(url=url,headers=headers)
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code,detail=response.text)
+        data = response.json()
+
+        place_names.append(data['displayName']['text'])
+
+        for place_type in data['types']:
+            if place_type in EATERY_TYPES:
+                eatery_indexes.append(i)
+                break
+
+    return [place_names, eatery_indexes]
