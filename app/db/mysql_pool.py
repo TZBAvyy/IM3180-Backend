@@ -1,11 +1,7 @@
 from mysql.connector import pooling
-from dotenv import load_dotenv
 import os
 
 # --- Database pooling setup  ---
-
-load_dotenv()  # loads .env if present
-
 DB_CONFIG = {
     "host": os.getenv("DB_HOST"),
     "port": int(os.getenv("DB_PORT", "3306")),

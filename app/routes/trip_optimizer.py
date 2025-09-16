@@ -2,7 +2,6 @@ from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 from fastapi import APIRouter, HTTPException
 import requests
 import os
-from dotenv import load_dotenv
 
 from app.models.trip_opti_models import TripOptiIn, TripOptiOut
 from app.models.error_models import HTTPError
@@ -12,8 +11,6 @@ from app.models.error_models import HTTPError
 
 router = APIRouter(prefix="/trip_optimizer", tags=["trip_optimizer"])
 
-load_dotenv()
-
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY","change-this") 
 
 @router.get("/")
@@ -22,8 +19,8 @@ def test():
 
 @router.post("/test_google")
 def test_google_api(request: dict):
-    coords = request.get("origins")
-    result = get_time_matrix(coords)
+    places = request.get("placeIds")
+    result = get_time_matrix(places)
     return result
 
 @router.post("/", responses={
@@ -68,6 +65,7 @@ def get_optimized_route(request: TripOptiIn):
         raise HTTPException(status_code=500, detail=f"Places API error: {e}")
 
     if len(eateries) < 2:
+        # What the fuck is this
         eateries = [i for i in range(1, min(3, len(all_coords)))]  # At least 2 eateries (excluding hotel)
 
     data = {}
@@ -198,35 +196,43 @@ def _format_solution(routing, manager, time_dimension, solution, data: dict):
 
     return route
 
-def get_time_matrix(coords: list[dict[str, float]]) -> list[list]:
+def get_time_matrix(places: list[str]) -> list[list]:
     """
-    Given list of coordinate strings [{latitude:xx.xx, longitude:xx.xx}], 
-    returns 2D time matrix of durations in minutes.
+    Given list of place ids (GoogleMaps IDs), returns 2D time matrix of durations in minutes.
     """
-    N = len(coords)
-    origins = coords
+    N = len(places)
+    origins = [{"waypoint":{"placeId":place_id}} for place_id in places]
     destinations = origins
     url = "https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix"
     headers = {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': GOOGLE_API_KEY,
-        'X-Goog-FieldMask': 'originIndex,destinationIndex,duration,distanceMeters,status,condition'
+        'X-Goog-FieldMask': 'originIndex,destinationIndex,duration,condition,status'
     }
     params = {
         "origins": origins,
         "destinations": destinations,
-        "travelMode": "DRIVE",
-        "routingPreference": "TRAFFIC_AWARE"
+        "travelMode": "TRANSIT",
     }
     response = requests.post(url=url,headers=headers,json=params)
     if response.status_code != 200:
         raise HTTPException(status_code=response.status_code,detail=response.text)
     data = response.json()
 
-    time_matrix = [[0 for _ in range(N)] for _ in range(N)] # Create 2d NxN array
-    
+    time_matrix = [[0 for _ in range(N)] for _ in range(N)] # Initialize 2d NxN array
+
     for entry in data:
-        time_matrix[entry['originIndex']][entry['destinationIndex']] = int(entry['duration'][:-1])
+        if len(entry['status']) != 0:
+            raise HTTPException(status_code=500, detail=f"Distance Matrix API error: {entry['status']}")
+        
+        elif entry['originIndex'] == entry['destinationIndex']:
+            entry['duration'] = 0  # Zero duration for same origin and destination
+
+        elif entry['condition'] == "ROUTE_NOT_FOUND":
+            raise HTTPException(status_code=500, detail="No route found between some locations")
+        
+        else:
+            time_matrix[entry['originIndex']][entry['destinationIndex']] = int(entry['duration'][:-1])//60      
 
     return time_matrix
 

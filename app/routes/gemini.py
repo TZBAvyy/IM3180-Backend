@@ -5,14 +5,12 @@ import json
 import re
 import numpy as np
 import os
-from dotenv import load_dotenv
 
 from app.models.gemini_models import PlanItinIn, PlanItinOut
 from app.models.error_models import HTTPError
 
 # --- Load environment variables ---
 
-load_dotenv()
 API_KEY = os.getenv("GEMINI_API_KEY", "get-your-own-key")
 
 # --- LLM Route  ---
