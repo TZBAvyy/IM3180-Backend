@@ -51,21 +51,22 @@ fastapi dev app/main.py
 Example:
 ```json
 {
-    "addresses":["Hall 2","Pioneer Hall","Can 1","Can 2","Hall 5","Hall 6","Crescent Hall"], 
-    "hotel_address":"Hall 1", 
-    "service_times":[30, 120, 120, 120, 30, 60, 45]
-    "start_hour":9,
-    "end_hour":21,
-    "lunch_start_hour":11,
-    "lunch_end_hour":13,
-    "dinner_start_hour":19,
-    "dinner_end_hour":21
+    "addresses":[
+        "ChIJzVHFNqkZ2jERboLN2YrltH8",
+        "ChIJRYMSeKwe2jERAR2QXVU39vg",
+        "ChIJ42h1onIZ2jERBbs-VGqmwrs",
+        "ChIJC00vnUgZ2jERodPEc17Iv3Q",
+        "ChIJgftoQGYZ2jERYN5VifWB6Ms",
+        "ChIJWT0bvgsZ2jERM7sHz6m87gE"
+    ], 
+    "hotel_address":"ChIJYakjWbYZ2jERgSiDZRBS8OY", 
+    "service_times":[30, 120, 120, 120, 30, 60]
 }
 ```
 | attribute         | isRequired? | type            | description                                                                                        |
 |-------------------|-------------|-----------------|----------------------------------------------------------------------------------------------------|
-| addresses         | **True**    | array[n] of str | Array of addresses to visit, <br>must be equal length to service_times                             |
-| hotel_address     | **True**    | str             | Address of starting node                                                                           |
+| addresses         | **True**    | array[n] of str | Array of place ids of various places to visit, <br>must be equal length to service_times                             |
+| hotel_address     | **True**    | str             | Place ID of  starting node                                                                           |
 | service_times     | **True**    | array[n] of int | Array of expected time spent at each address listed in mins, <br>must be equal length to addresses |
 | start_hour        | **False**   | int             | Expected time of day start (e.g 13 => 1pm start), <br>default: 9 (9am)                             |
 | end_hour          | **False**   | int             | Expected time of day end, <br>default: 21 (9pm)                                                    |
@@ -78,17 +79,56 @@ Example:
 #### JSON Output
 Example
 ```json
-{   
-    "route":[
-        {"address":"Hall 1","postal_code":"000000","arrival_time":"09:00","type":"Start"},
-        {"address":"Hall 2","postal_code":"000001","arrival_time":"09:42","type":"Attraction"},
-        {"address":"Hall 5","postal_code":"000005","arrival_time":"10:31","type":"Attraction"},
-        {"address":"Can 1","postal_code":"000003","arrival_time":"12:56","type":"Lunch"},
-        {"address":"Crescent Hall","postal_code":"000007","arrival_time":"14:00","type":"Attraction"},
-        {"address":"Hall 6","postal_code":"000006","arrival_time":"15:13","type":"Attraction"},
-        {"address":"Can 2","postal_code":"000004","arrival_time":"17:37","type":"Dinner"},
-        {"address":"Pioneer Hall","postal_code":"000002","arrival_time":"20:04","type":"Attraction"},
-        {"address":"Hall 1","postal_code":"000000","arrival_time":"20:27","type":"End"}
-    ]
+{
+  "route": [
+    {
+      "name": "Hotel Boss",
+      "place_id": "ChIJYakjWbYZ2jERgSiDZRBS8OY",
+      "arrival_time": "09:00",
+      "type": "Start"
+    },
+    {
+      "name": "Saizeriya @ Marina Square",
+      "place_id": "ChIJC00vnUgZ2jERodPEc17Iv3Q",
+      "arrival_time": "11:17",
+      "type": "Lunch"
+    },
+    {
+      "name": "Singapore Flyer",
+      "place_id": "ChIJzVHFNqkZ2jERboLN2YrltH8",
+      "arrival_time": "11:58",
+      "type": "Attraction"
+    },
+    {
+      "name": "McDonald's Boat Quay",
+      "place_id": "ChIJWT0bvgsZ2jERM7sHz6m87gE",
+      "arrival_time": "13:18",
+      "type": "Attraction"
+    },
+    {
+      "name": "Sentosa",
+      "place_id": "ChIJRYMSeKwe2jERAR2QXVU39vg",
+      "arrival_time": "16:03",
+      "type": "Attraction"
+    },
+    {
+      "name": "Chinatown Hawker Center",
+      "place_id": "ChIJgftoQGYZ2jERYN5VifWB6Ms",
+      "arrival_time": "17:22",
+      "type": "Dinner"
+    },
+    {
+      "name": "Chinatown",
+      "place_id": "ChIJ42h1onIZ2jERBbs-VGqmwrs",
+      "arrival_time": "19:23",
+      "type": "Attraction"
+    },
+    {
+      "name": "Hotel Boss",
+      "place_id": "ChIJYakjWbYZ2jERgSiDZRBS8OY",
+      "arrival_time": "19:47",
+      "type": "End"
+    }
+  ]
 }
 ```

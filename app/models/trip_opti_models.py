@@ -23,18 +23,18 @@ class TripOptiIn(BaseModel):
         json_schema_extra = {
             "example": {
                 "addresses": [
-                    "Marina Bay Sands, 10 Bayfront Ave, Singapore 018956",
-                    "Lau Pa Sat, 18 Raffles Quay, Singapore 048582",
-                    "Satay by the Bay, 18 Marina Gardens Dr, Singapore 018953"
+                    "placeID-1",
+                    "placeID-2",
+                    "placeID-3"
                 ],
-                "hotel_address": "Hotel Jen Tanglin Singapore, 1A Cuscaden Rd, Singapore 249716",
+                "hotel_address": "placeID-hotel",
                 "service_times": [60, 60, 60]
             }
         }
 
 class TripAddress(TypedDict):
-    address: str
-    postal_code: str
+    name: str
+    place_id: str
     arrival_time: str  # predicted arrival time at each address
     type: str  # "Start", "Lunch", "Dinner", "Attraction", "End"
 
@@ -46,34 +46,52 @@ class TripOptiOut(BaseModel):
             "example": {
                 "route": [
                     {
-                        "address": "Hotel Jen Tanglin Singapore, 1A Cuscaden Rd, Singapore 249716",
-                        "postal_code": "249716",
-                        "arrival_time": "09:00",
-                        "type": "Start"
+                    "name": "Hotel Boss",
+                    "place_id": "ChIJYakjWbYZ2jERgSiDZRBS8OY",
+                    "arrival_time": "09:00",
+                    "type": "Start"
                     },
                     {
-                        "address": "Lunch Break at Lau Pa Sat, 18 Raffles Quay, Singapore 048582",
-                        "postal_code": "048582",
-                        "arrival_time": "11:00",
-                        "type": "Lunch"
+                    "name": "Saizeriya @ Marina Square",
+                    "place_id": "ChIJC00vnUgZ2jERodPEc17Iv3Q",
+                    "arrival_time": "11:17",
+                    "type": "Lunch"
                     },
                     {
-                        "address": "Marina Bay Sands, 10 Bayfront Ave, Singapore 018956",
-                        "postal_code": "018956",
-                        "arrival_time": "12:00",
-                        "type": "Attraction"
+                    "name": "Singapore Flyer",
+                    "place_id": "ChIJzVHFNqkZ2jERboLN2YrltH8",
+                    "arrival_time": "11:58",
+                    "type": "Attraction"
                     },
                     {
-                        "address": "Dinner Break at Satay by the Bay, 18 Marina Gardens Dr, Singapore 018953",
-                        "postal_code": "018953",
-                        "arrival_time": "17:00",
-                        "type": "Dinner"
+                    "name": "McDonald's Boat Quay",
+                    "place_id": "ChIJWT0bvgsZ2jERM7sHz6m87gE",
+                    "arrival_time": "13:18",
+                    "type": "Attraction"
                     },
                     {
-                        "address": "Hotel Jen Tanglin Singapore, 1A Cuscaden Rd, Singapore 249716",
-                        "postal_code": "249716",
-                        "arrival_time": "18:30",
-                        "type": "End"
+                    "name": "Sentosa",
+                    "place_id": "ChIJRYMSeKwe2jERAR2QXVU39vg",
+                    "arrival_time": "16:03",
+                    "type": "Attraction"
+                    },
+                    {
+                    "name": "Chinatown Hawker Center",
+                    "place_id": "ChIJgftoQGYZ2jERYN5VifWB6Ms",
+                    "arrival_time": "17:22",
+                    "type": "Dinner"
+                    },
+                    {
+                    "name": "Chinatown",
+                    "place_id": "ChIJ42h1onIZ2jERBbs-VGqmwrs",
+                    "arrival_time": "19:23",
+                    "type": "Attraction"
+                    },
+                    {
+                    "name": "Hotel Boss",
+                    "place_id": "ChIJYakjWbYZ2jERgSiDZRBS8OY",
+                    "arrival_time": "19:47",
+                    "type": "End"
                     }
                 ]
             }

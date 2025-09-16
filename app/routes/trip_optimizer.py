@@ -168,7 +168,7 @@ def _format_solution(routing, manager, time_dimension, solution, data: dict):
         time_val = solution.Value(time_dimension.CumulVar(index))
         route_item = {}
         route_item["name"] = data['address_names'][node]
-        route_item["placeID"] = data['placeIDs'][node]
+        route_item["place_id"] = data['placeIDs'][node]
         route_item["arrival_time"] = f"{data['start_hour'] + time_val // 60:02d}:{time_val % 60:02d}"
 
         if node == data['depot']:
@@ -186,7 +186,7 @@ def _format_solution(routing, manager, time_dimension, solution, data: dict):
     return_time = solution.Value(time_dimension.CumulVar(index))
     final = {
         "name": data['address_names'][data['depot']],
-        "placeID": data['placeIDs'][data['depot']],
+        "place_id": data['placeIDs'][data['depot']],
         "arrival_time": f"{data['start_hour'] + return_time // 60:02d}:{return_time % 60:02d}",
         "type": "End"
     }
