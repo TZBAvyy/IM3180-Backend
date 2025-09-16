@@ -57,19 +57,17 @@ def get_optimized_route(request: TripOptiIn):
 
     try:
         time_matrix = get_time_matrix(places)
+        identify_result = identify_eateries(places)
+        eateries = identify_result[1]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Distance Matrix API error: {e}")
-
-    try:
-        eateries = identify_eateries(places, api_key=GOOGLE_API_KEY)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Places API error: {e}")
+        raise HTTPException(status_code=500, detail=f"Google Maps API error: {e}")
 
     if len(eateries) < 2:
-        # What the fuck is this
-        eateries = [i for i in range(1, min(3, len(places)))]  # At least 2 eateries (excluding hotel)
+        raise HTTPException(status_code=422, detail="At least two eateries (restaurant, cafe, food court, etc.) are required among the addresses")
 
+    # --- Prepare data for trip optimizer ---
     data = {}
+    data['address_names'] = identify_result[0]
     data['eatery_nodes'] = eateries
     data['time_matrix'] = time_matrix
     data['placeIDs'] = places
@@ -169,6 +167,7 @@ def _format_solution(routing, manager, time_dimension, solution, data: dict):
         node = manager.IndexToNode(index)
         time_val = solution.Value(time_dimension.CumulVar(index))
         route_item = {}
+        route_item["name"] = data['address_names'][node]
         route_item["placeID"] = data['placeIDs'][node]
         route_item["arrival_time"] = f"{data['start_hour'] + time_val // 60:02d}:{time_val % 60:02d}"
 
@@ -186,6 +185,7 @@ def _format_solution(routing, manager, time_dimension, solution, data: dict):
 
     return_time = solution.Value(time_dimension.CumulVar(index))
     final = {
+        "name": data['address_names'][data['depot']],
         "placeID": data['placeIDs'][data['depot']],
         "arrival_time": f"{data['start_hour'] + return_time // 60:02d}:{return_time % 60:02d}",
         "type": "End"
@@ -235,13 +235,14 @@ def get_time_matrix(places: list[str]) -> list[list]:
     return time_matrix
 
 
-def identify_eateries(places: list[str]) -> list[int]:
+def identify_eateries(places: list[str]) -> list[list[str],list[int]]:
     """
     Identify eateries (restaurant, cafe, food, etc.) among coords using Google Places Nearby Search API.
     Returns list of indexes corresponding to eatery coordinates.
     """
     EATERY_TYPES = ["restaurant", "diner", "food_court"]
     eatery_indexes = []
+    place_names = []
 
     N = len(places)
 
@@ -250,16 +251,18 @@ def identify_eateries(places: list[str]) -> list[int]:
         headers = {
             'Content-Type': 'application/json',
             'X-Goog-Api-Key': GOOGLE_API_KEY,
-            'X-Goog-FieldMask': 'id,types'
+            'X-Goog-FieldMask': 'id,displayName,types'
         }
         response = requests.get(url=url,headers=headers)
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code,detail=response.text)
         data = response.json()
 
+        place_names.append(data['displayName']['text'])
+
         for place_type in data['types']:
             if place_type in EATERY_TYPES:
                 eatery_indexes.append(i)
                 break
 
-    return eatery_indexes
+    return [place_names, eatery_indexes]

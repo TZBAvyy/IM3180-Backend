@@ -1,5 +1,12 @@
 {
-    "addresses":["Hall 2","Pioneer Hall","Can 1","Can 2","Hall 5","Hall 6","Crescent Hall"], 
-    "hotel_address":"Hall 1", 
-    "service_times":[30, 120, 120, 120, 30, 60, 45]
+    "addresses":[
+        "ChIJzVHFNqkZ2jERboLN2YrltH8",
+        "ChIJRYMSeKwe2jERAR2QXVU39vg",
+        "ChIJ42h1onIZ2jERBbs-VGqmwrs",
+        "ChIJC00vnUgZ2jERodPEc17Iv3Q",
+        "ChIJgftoQGYZ2jERYN5VifWB6Ms",
+        "ChIJWT0bvgsZ2jERM7sHz6m87gE"
+    ], 
+    "hotel_address":"ChIJYakjWbYZ2jERgSiDZRBS8OY", 
+    "service_times":[30, 120, 120, 120, 30, 60]
 }
