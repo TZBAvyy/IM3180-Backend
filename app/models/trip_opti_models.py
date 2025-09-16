@@ -7,8 +7,8 @@ from typing_extensions import TypedDict
 class TripOptiIn(BaseModel):
 
     # Required parameters
-    addresses: list[str]
-    hotel_address: str
+    addresses: list[str] # list of address's place IDs
+    hotel_address: str # starting location place ID
     service_times: list[int]  # time (minutes) spent at each node
 
     # Optional parameters with defaults

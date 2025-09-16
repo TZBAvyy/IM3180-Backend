@@ -20,13 +20,14 @@ def test():
 @router.post("/test_google")
 def test_google_api(request: dict):
     places = request.get("placeIds")
-    result = get_time_matrix(places)
+    result = identify_eateries(places)
     return result
 
 @router.post("/", responses={
     200: {"model": TripOptiOut, "description": "Successful Response"},
     400: {"model": HTTPError, "description": "Missing required parameters"},
-    404: {"model": HTTPError, "description": "No solution found"}
+    404: {"model": HTTPError, "description": "No solution found"},
+    500: {"model": HTTPError, "description": "Google API error"}
 })
 def get_optimized_route(request: TripOptiIn):
 
@@ -51,28 +52,27 @@ def get_optimized_route(request: TripOptiIn):
     if len(addresses) < 1:
         raise HTTPException(status_code=422, detail="At least one address is required")
 
-    # Combine hotel and addresses for querying
-    all_coords = [hotel_address] + addresses
+    # --- Google API calls for Time Matrix and Eatery ID ---
+    places = [hotel_address] + addresses
 
     try:
-        time_matrix = get_time_matrix(all_coords)
+        time_matrix = get_time_matrix(places)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Distance Matrix API error: {e}")
 
     try:
-        eateries = identify_eateries(all_coords, api_key=GOOGLE_API_KEY)
+        eateries = identify_eateries(places, api_key=GOOGLE_API_KEY)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Places API error: {e}")
 
     if len(eateries) < 2:
         # What the fuck is this
-        eateries = [i for i in range(1, min(3, len(all_coords)))]  # At least 2 eateries (excluding hotel)
+        eateries = [i for i in range(1, min(3, len(places)))]  # At least 2 eateries (excluding hotel)
 
     data = {}
     data['eatery_nodes'] = eateries
     data['time_matrix'] = time_matrix
-    data['postal_codes'] = ["00000" + str(i) for i in range(len(addresses) + 1)]
-    data['addresses'] = all_coords
+    data['placeIDs'] = places
     data['service_times'] = [0] + service_times
     data['num_vehicles'] = 1
     data['depot'] = 0
@@ -169,8 +169,7 @@ def _format_solution(routing, manager, time_dimension, solution, data: dict):
         node = manager.IndexToNode(index)
         time_val = solution.Value(time_dimension.CumulVar(index))
         route_item = {}
-        route_item["address"] = data['addresses'][node]
-        route_item["postal_code"] = data['postal_codes'][node]
+        route_item["placeID"] = data['placeIDs'][node]
         route_item["arrival_time"] = f"{data['start_hour'] + time_val // 60:02d}:{time_val % 60:02d}"
 
         if node == data['depot']:
@@ -187,8 +186,7 @@ def _format_solution(routing, manager, time_dimension, solution, data: dict):
 
     return_time = solution.Value(time_dimension.CumulVar(index))
     final = {
-        "address": data['addresses'][data['depot']],
-        "postal_code": "000000",  # Placeholder for postal code
+        "placeID": data['placeIDs'][data['depot']],
         "arrival_time": f"{data['start_hour'] + return_time // 60:02d}:{return_time % 60:02d}",
         "type": "End"
     }
@@ -237,31 +235,31 @@ def get_time_matrix(places: list[str]) -> list[list]:
     return time_matrix
 
 
-def identify_eateries(coords, api_key=GOOGLE_API_KEY):
+def identify_eateries(places: list[str]) -> list[int]:
     """
     Identify eateries (restaurant, cafe, food, etc.) among coords using Google Places Nearby Search API.
     Returns list of indexes corresponding to eatery coordinates.
     """
-    eatery_types = {"restaurant", "cafe", "food", "bakery", "meal_takeaway", "meal_delivery"}
+    EATERY_TYPES = ["restaurant", "diner", "food_court"]
     eatery_indexes = []
 
-    for idx, coord in enumerate(coords):
-        lat, lng = coord.split(",")
-        url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-        params = {
-            "location": f"{lat},{lng}",
-            "radius": 100,  # meters
-            "key": api_key,
-            "type": "restaurant"  # general eatery type for narrowing search
+    N = len(places)
+
+    for i in range(N):
+        url = f"https://places.googleapis.com/v1/places/{places[i]}"
+        headers = {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': GOOGLE_API_KEY,
+            'X-Goog-FieldMask': 'id,types'
         }
-        response = requests.get(url, params=params)
+        response = requests.get(url=url,headers=headers)
         if response.status_code != 200:
-            raise Exception(f"Places API error at index {idx}: {response.status_code} {response.text}")
+            raise HTTPException(status_code=response.status_code,detail=response.text)
         data = response.json()
-        if data.get("status") == "OK":
-            for place in data.get("results", []):
-                place_types = set(place.get("types", []))
-                if eatery_types.intersection(place_types):
-                    eatery_indexes.append(idx)
-                    break  # no need to check more places here
+
+        for place_type in data['types']:
+            if place_type in EATERY_TYPES:
+                eatery_indexes.append(i)
+                break
+
     return eatery_indexes
