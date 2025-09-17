@@ -8,8 +8,9 @@ class TripOptiIn(BaseModel):
 
     # Required parameters
     addresses: list[str] # list of address's place IDs
-    hotel_address: str # starting location place ID
+    hotel_index: int # starting location place index in addresses list
     service_times: list[int]  # time (minutes) spent at each node
+    eatery_indexes: list[int]  # indexes of eateries in the addresses list
 
     # Optional parameters with defaults
     start_hour: Optional[int] = 9
@@ -23,11 +24,14 @@ class TripOptiIn(BaseModel):
         json_schema_extra = {
             "example": {
                 "addresses": [
+                    "placeID-hotel",
                     "placeID-1",
-                    "placeID-2",
-                    "placeID-3"
+                    "placeID-lunch",
+                    "placeID-3",
+                    "placeID-dinner",
                 ],
-                "hotel_address": "placeID-hotel",
+                "hotel_index": 0,
+                "eatery_indexes": [2, 4],
                 "service_times": [60, 60, 60]
             }
         }

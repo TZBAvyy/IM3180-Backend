@@ -1,5 +1,6 @@
 {
     "addresses":[
+        "ChIJYakjWbYZ2jERgSiDZRBS8OY",
         "ChIJzVHFNqkZ2jERboLN2YrltH8",
         "ChIJRYMSeKwe2jERAR2QXVU39vg",
         "ChIJ42h1onIZ2jERBbs-VGqmwrs",
@@ -7,6 +8,7 @@
         "ChIJgftoQGYZ2jERYN5VifWB6Ms",
         "ChIJWT0bvgsZ2jERM7sHz6m87gE"
     ], 
-    "hotel_address":"ChIJYakjWbYZ2jERgSiDZRBS8OY", 
-    "service_times":[30, 120, 120, 120, 30, 60]
+    "eatery_indexes": [4,5,6],
+    "hotel_index":0, 
+    "service_times":[0, 30, 120, 120, 120, 30, 60]
 }

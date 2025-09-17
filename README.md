@@ -52,6 +52,7 @@ Example:
 ```json
 {
     "addresses":[
+        "ChIJYakjWbYZ2jERgSiDZRBS8OY",
         "ChIJzVHFNqkZ2jERboLN2YrltH8",
         "ChIJRYMSeKwe2jERAR2QXVU39vg",
         "ChIJ42h1onIZ2jERBbs-VGqmwrs",
@@ -59,14 +60,16 @@ Example:
         "ChIJgftoQGYZ2jERYN5VifWB6Ms",
         "ChIJWT0bvgsZ2jERM7sHz6m87gE"
     ], 
-    "hotel_address":"ChIJYakjWbYZ2jERgSiDZRBS8OY", 
-    "service_times":[30, 120, 120, 120, 30, 60]
+    "eatery_indexes": [4,5,6],
+    "hotel_index":0, 
+    "service_times":[0, 30, 120, 120, 120, 30, 60]
 }
 ```
 | attribute         | isRequired? | type            | description                                                                                        |
 |-------------------|-------------|-----------------|----------------------------------------------------------------------------------------------------|
-| addresses         | **True**    | array[n] of str | Array of place ids of various places to visit, <br>must be equal length to service_times                             |
-| hotel_address     | **True**    | str             | Place ID of  starting node                                                                           |
+| addresses         | **True**    | array[n] of str | Array of place ids of hotel, food places and attractions, <br>must be equal length to service_times                             |
+| hotel_index       | **True**    | int             | Index of  starting node in addresses                                                                           |
+| eatery_indexes    | **True**    | array[>2] of int| Indexes of eatery spots (can dine in) in addresses                                                                           |
 | service_times     | **True**    | array[n] of int | Array of expected time spent at each address listed in mins, <br>must be equal length to addresses |
 | start_hour        | **False**   | int             | Expected time of day start (e.g 13 => 1pm start), <br>default: 9 (9am)                             |
 | end_hour          | **False**   | int             | Expected time of day end, <br>default: 21 (9pm)                                                    |
@@ -82,51 +85,43 @@ Example
 {
   "route": [
     {
-      "name": "Hotel Boss",
       "place_id": "ChIJYakjWbYZ2jERgSiDZRBS8OY",
       "arrival_time": "09:00",
       "type": "Start"
     },
     {
-      "name": "Saizeriya @ Marina Square",
       "place_id": "ChIJC00vnUgZ2jERodPEc17Iv3Q",
-      "arrival_time": "11:17",
+      "arrival_time": "11:22",
       "type": "Lunch"
     },
     {
-      "name": "Singapore Flyer",
       "place_id": "ChIJzVHFNqkZ2jERboLN2YrltH8",
-      "arrival_time": "11:58",
+      "arrival_time": "12:03",
       "type": "Attraction"
     },
     {
-      "name": "McDonald's Boat Quay",
-      "place_id": "ChIJWT0bvgsZ2jERM7sHz6m87gE",
-      "arrival_time": "13:18",
-      "type": "Attraction"
-    },
-    {
-      "name": "Sentosa",
       "place_id": "ChIJRYMSeKwe2jERAR2QXVU39vg",
-      "arrival_time": "16:03",
+      "arrival_time": "14:50",
       "type": "Attraction"
     },
     {
-      "name": "Chinatown Hawker Center",
+      "place_id": "ChIJ42h1onIZ2jERBbs-VGqmwrs",
+      "arrival_time": "17:40",
+      "type": "Attraction"
+    },
+    {
       "place_id": "ChIJgftoQGYZ2jERYN5VifWB6Ms",
-      "arrival_time": "17:22",
+      "arrival_time": "18:11",
       "type": "Dinner"
     },
     {
-      "name": "Chinatown",
-      "place_id": "ChIJ42h1onIZ2jERBbs-VGqmwrs",
-      "arrival_time": "19:23",
+      "place_id": "ChIJWT0bvgsZ2jERM7sHz6m87gE",
+      "arrival_time": "19:25",
       "type": "Attraction"
     },
     {
-      "name": "Hotel Boss",
       "place_id": "ChIJYakjWbYZ2jERgSiDZRBS8OY",
-      "arrival_time": "19:47",
+      "arrival_time": "19:43",
       "type": "End"
     }
   ]

@@ -17,12 +17,6 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY","change-this")
 def test():
     return {"message": "Trip Optimizer Endpoint", "success": True}
 
-@router.post("/test_google")
-def test_google_api(request: dict):
-    places = request.get("placeIds")
-    result = identify_eateries(places)
-    return result
-
 @router.post("/", responses={
     200: {"model": TripOptiOut, "description": "Successful Response"},
     400: {"model": HTTPError, "description": "Missing required parameters"},
@@ -33,8 +27,9 @@ def get_optimized_route(request: TripOptiIn):
 
     # --- Required parameters ---
     addresses = request.addresses  
-    hotel_address = request.hotel_address  
+    hotel_index = request.hotel_index  
     service_times = request.service_times
+    eateries = request.eatery_indexes
 
     # --- Optional paramters with default values ---
     start_hour = request.start_hour
@@ -45,35 +40,33 @@ def get_optimized_route(request: TripOptiIn):
     dinner_end_hour = request.dinner_end_hour
 
     # --- Input validation ---
-    if addresses is None or hotel_address is None or service_times is None:
+    if addresses is None or hotel_index is None or service_times is None:
         raise HTTPException(status_code=400, detail="Missing required fields")
     if len(addresses) != len(service_times):
         raise HTTPException(status_code=422, detail="Length of addresses and service_times must match")
     if len(addresses) < 1:
         raise HTTPException(status_code=422, detail="At least one address is required")
-
-    # --- Google API calls for Time Matrix and Eatery ID ---
-    places = [hotel_address] + addresses
-
-    try:
-        time_matrix = get_time_matrix(places)
-        identify_result = identify_eateries(places)
-        eateries = identify_result[1]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Google Maps API error: {e}")
-
     if len(eateries) < 2:
         raise HTTPException(status_code=422, detail="At least two eateries (restaurant, cafe, food court, etc.) are required among the addresses")
+    if max(eateries) >= len(addresses):
+        raise HTTPException(status_code=422, detail="Eatery index out of range")
+    if service_times[hotel_index] != 0:
+        raise HTTPException(status_code=422, detail="Service time at hotel must be zero")
+
+    # --- Google API call for Time Matrix---
+    try:
+        time_matrix = get_time_matrix(addresses)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Google Maps Routes API error: {e}")
 
     # --- Prepare data for trip optimizer ---
     data = {}
-    data['address_names'] = identify_result[0]
     data['eatery_nodes'] = eateries
     data['time_matrix'] = time_matrix
-    data['placeIDs'] = places
-    data['service_times'] = [0] + service_times
+    data['placeIDs'] = addresses
+    data['service_times'] = service_times
     data['num_vehicles'] = 1
-    data['depot'] = 0
+    data['depot'] = hotel_index
     data['start_hour'] = start_hour
     data['end_hour'] = end_hour
     data['lunch_start_hour'] = lunch_start_hour
@@ -167,7 +160,6 @@ def _format_solution(routing, manager, time_dimension, solution, data: dict):
         node = manager.IndexToNode(index)
         time_val = solution.Value(time_dimension.CumulVar(index))
         route_item = {}
-        route_item["name"] = data['address_names'][node]
         route_item["place_id"] = data['placeIDs'][node]
         route_item["arrival_time"] = f"{data['start_hour'] + time_val // 60:02d}:{time_val % 60:02d}"
 
@@ -185,7 +177,6 @@ def _format_solution(routing, manager, time_dimension, solution, data: dict):
 
     return_time = solution.Value(time_dimension.CumulVar(index))
     final = {
-        "name": data['address_names'][data['depot']],
         "place_id": data['placeIDs'][data['depot']],
         "arrival_time": f"{data['start_hour'] + return_time // 60:02d}:{return_time % 60:02d}",
         "type": "End"
@@ -235,34 +226,34 @@ def get_time_matrix(places: list[str]) -> list[list]:
     return time_matrix
 
 
-def identify_eateries(places: list[str]) -> list[list[str],list[int]]:
-    """
-    Identify eateries (restaurant, cafe, food, etc.) among coords using Google Places Nearby Search API.
-    Returns list of indexes corresponding to eatery coordinates.
-    """
-    EATERY_TYPES = ["restaurant", "diner", "food_court"]
-    eatery_indexes = []
-    place_names = []
+# def identify_eateries(places: list[str]) -> list[list[str],list[int]]:
+#     """
+#     Identify eateries (restaurant, cafe, food, etc.) among coords using Google Places Nearby Search API.
+#     Returns list of indexes corresponding to eatery coordinates.
+#     """
+#     EATERY_TYPES = ["restaurant", "diner", "food_court"]
+#     eatery_indexes = []
+#     place_names = []
 
-    N = len(places)
+#     N = len(places)
 
-    for i in range(N):
-        url = f"https://places.googleapis.com/v1/places/{places[i]}"
-        headers = {
-            'Content-Type': 'application/json',
-            'X-Goog-Api-Key': GOOGLE_API_KEY,
-            'X-Goog-FieldMask': 'id,displayName,types'
-        }
-        response = requests.get(url=url,headers=headers)
-        if response.status_code != 200:
-            raise HTTPException(status_code=response.status_code,detail=response.text)
-        data = response.json()
+#     for i in range(N):
+#         url = f"https://places.googleapis.com/v1/places/{places[i]}"
+#         headers = {
+#             'Content-Type': 'application/json',
+#             'X-Goog-Api-Key': GOOGLE_API_KEY,
+#             'X-Goog-FieldMask': 'id,displayName,types'
+#         }
+#         response = requests.get(url=url,headers=headers)
+#         if response.status_code != 200:
+#             raise HTTPException(status_code=response.status_code,detail=response.text)
+#         data = response.json()
 
-        place_names.append(data['displayName']['text'])
+#         place_names.append(data['displayName']['text'])
 
-        for place_type in data['types']:
-            if place_type in EATERY_TYPES:
-                eatery_indexes.append(i)
-                break
+#         for place_type in data['types']:
+#             if place_type in EATERY_TYPES:
+#                 eatery_indexes.append(i)
+#                 break
 
-    return [place_names, eatery_indexes]
+#     return [place_names, eatery_indexes]
