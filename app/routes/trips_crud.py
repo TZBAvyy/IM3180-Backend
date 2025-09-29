@@ -28,6 +28,34 @@ def read_trip(trip_id: int, conn=Depends(get_db)):
     cur.close()
     return trip
 
+
+@router.get("/user/{user_id}")
+def read_user_trips(user_id: int, conn=Depends(get_db)):
+    cur = conn.cursor(dictionary=True)
+
+    # get all trips for this user
+    cur.execute("SELECT * FROM trips WHERE user_id=%s ORDER BY start_date", (user_id,))
+    userTrips = cur.fetchall()
+
+    if not userTrips:
+        cur.close()
+        return []  # return empty list instead of 404
+
+    for trip in userTrips:
+        # get days for this trip
+        cur.execute("SELECT * FROM day_trips WHERE trip_id=%s ORDER BY day_number", (trip["id"],))
+        days = cur.fetchall()
+
+        for d in days:
+            # get activities for this day
+            cur.execute("SELECT * FROM activities WHERE day_trip_id=%s", (d["id"],))
+            d["activities"] = cur.fetchall()
+
+        trip["days"] = days
+
+    cur.close()
+    return userTrips
+
 # ---------------- UPDATE ----------------
 @router.put("/activities/{activity_id}")
 def update_activity(activity_id: int, body: dict, conn=Depends(get_db)):
