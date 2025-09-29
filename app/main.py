@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from app.routes import trip_optimizer, cluster, gemini, auth
+from app.routes import trip_optimizer, cluster, gemini, auth, trips_crud
 
 # --- FastAPI main app code---
 
@@ -20,6 +20,7 @@ app.include_router(trip_optimizer.router)
 app.include_router(cluster.router)
 app.include_router(gemini.router)
 app.include_router(auth.router)
+app.include_router(trips_crud.router)
 
 @app.get("/")
 def test():
