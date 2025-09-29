@@ -157,3 +157,77 @@ def create_activity(day_id: int, body: dict, conn=Depends(get_db)):
     activity = cur.fetchone()
     cur.close()
     return activity
+
+# ---------------- CREATE FULL TRIP (BULK INSERT) ----------------
+@router.post("/full", status_code=201)
+def create_full_trip(body: dict, conn=Depends(get_db)):
+    """
+    Body example:
+    {
+      "user_id": 2,
+      "name": "Japan Autumn Adventure",
+      "start_date": "2025-11-10",
+      "end_date": "2025-11-15",
+      "days": [
+        {
+          "day_number": 1,
+          "date": "2025-11-10",
+          "activities": [
+            {
+              "destination": "Shinjuku Gyoen National Garden",
+              "type": "Nature",
+              "start_time": "09:00:00",
+              "end_time": "11:00:00",
+              "description": "Beautiful garden with autumn leaves.",
+              "rating": 4.7,
+              "address": "11 Naitomachi, Shinjuku City, Tokyo"
+            }
+          ]
+        }
+      ]
+    }
+    """
+    cur = conn.cursor(dictionary=True)
+    try:
+        # Insert trip
+        cur.execute(
+            "INSERT INTO trips (user_id, name, start_date, end_date) VALUES (%s,%s,%s,%s)",
+            (body["user_id"], body["name"], body["start_date"], body["end_date"]),
+        )
+        trip_id = cur.lastrowid
+
+        # Insert days + activities
+        for d in body.get("days", []):
+            cur.execute(
+                "INSERT INTO day_trips (trip_id, day_number, date) VALUES (%s,%s,%s)",
+                (trip_id, d["day_number"], d["date"]),
+            )
+            day_id = cur.lastrowid
+
+            for a in d.get("activities", []):
+                cur.execute(
+                    """
+                    INSERT INTO activities
+                    (day_trip_id, destination, type, start_time, end_time, description, rating, address)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                    """,
+                    (
+                        day_id,
+                        a["destination"],
+                        a.get("type"),
+                        a.get("start_time"),
+                        a.get("end_time"),
+                        a.get("description"),
+                        a.get("rating"),
+                        a.get("address"),
+                    ),
+                )
+
+        conn.commit()
+        cur.close()
+        return {"message": "Trip created successfully", "trip_id": trip_id}
+
+    except Exception as e:
+        conn.rollback()
+        cur.close()
+        raise HTTPException(400, f"Failed to create trip: {e}")
