@@ -1,0 +1,131 @@
+from fastapi import APIRouter, Depends, HTTPException
+from app.db.mysql_pool import get_db
+
+router = APIRouter(prefix="/trips", tags=["trips"])
+
+# ---------------- READ ----------------
+@router.get("/{trip_id}")
+def read_trip(trip_id: int, conn=Depends(get_db)):
+    cur = conn.cursor(dictionary=True)
+
+    # get trip
+    cur.execute("SELECT * FROM trips WHERE id=%s", (trip_id,))
+    trip = cur.fetchone()
+    if not trip:
+        cur.close()
+        raise HTTPException(404, "Trip not found")
+
+    # get day_trips
+    cur.execute("SELECT * FROM day_trips WHERE trip_id=%s ORDER BY day_number", (trip_id,))
+    days = cur.fetchall()
+
+    # attach activities for each day
+    for d in days:
+        cur.execute("SELECT * FROM activities WHERE day_trip_id=%s", (d["id"],))
+        d["activities"] = cur.fetchall()
+
+    trip["days"] = days
+    cur.close()
+    return trip
+
+# ---------------- UPDATE ----------------
+@router.put("/activities/{activity_id}")
+def update_activity(activity_id: int, body: dict, conn=Depends(get_db)):
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM activities WHERE id=%s", (activity_id,))
+    row = cur.fetchone()
+    if not row:
+        cur.close()
+        raise HTTPException(404, "Activity not found")
+
+    # dynamic update: only update provided fields
+    fields = []
+    values = []
+    for key, val in body.items():
+        if key in ["destination", "type", "start_time", "end_time", "description", "rating", "address"]:
+            fields.append(f"{key}=%s")
+            values.append(val)
+
+    if not fields:
+        cur.close()
+        raise HTTPException(400, "No valid fields to update")
+
+    values.append(activity_id)
+    sql = f"UPDATE activities SET {', '.join(fields)} WHERE id=%s"
+    cur.execute(sql, tuple(values))
+    conn.commit()
+
+    cur.execute("SELECT * FROM activities WHERE id=%s", (activity_id,))
+    updated = cur.fetchone()
+    cur.close()
+    return updated
+
+# ---------------- CREATE ----------------
+@router.post("/", status_code=201)
+def create_trip(body: dict, conn=Depends(get_db)):
+    """
+    Body should include: user_id, name, start_date, end_date
+    """
+    cur = conn.cursor(dictionary=True)
+    cur.execute(
+        "INSERT INTO trips (user_id, name, start_date, end_date) VALUES (%s,%s,%s,%s)",
+        (body["user_id"], body["name"], body["start_date"], body["end_date"]),
+    )
+    conn.commit()
+    trip_id = cur.lastrowid
+
+    cur.execute("SELECT * FROM trips WHERE id=%s", (trip_id,))
+    trip = cur.fetchone()
+    cur.close()
+    return trip
+
+
+@router.post("/{trip_id}/days", status_code=201)
+def create_day(trip_id: int, body: dict, conn=Depends(get_db)):
+    """
+    Body should include: day_number, date
+    """
+    cur = conn.cursor(dictionary=True)
+    cur.execute(
+        "INSERT INTO day_trips (trip_id, day_number, date) VALUES (%s,%s,%s)",
+        (trip_id, body["day_number"], body["date"]),
+    )
+    conn.commit()
+    day_id = cur.lastrowid
+
+    cur.execute("SELECT * FROM day_trips WHERE id=%s", (day_id,))
+    day = cur.fetchone()
+    cur.close()
+    return day
+
+
+@router.post("/days/{day_id}/activities", status_code=201)
+def create_activity(day_id: int, body: dict, conn=Depends(get_db)):
+    """
+    Body should include: destination, type, start_time, end_time, description, rating, address
+    """
+    cur = conn.cursor(dictionary=True)
+    cur.execute(
+        """
+        INSERT INTO activities 
+        (day_trip_id, destination, type, start_time, end_time, description, rating, address)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+        """,
+        (
+            day_id,
+            body["destination"],
+            body.get("type"),
+            body.get("start_time"),
+            body.get("end_time"),
+            body.get("description"),
+            body.get("rating"),
+            body.get("address"),
+        ),
+    )
+    conn.commit()
+    activity_id = cur.lastrowid
+
+    cur.execute("SELECT * FROM activities WHERE id=%s", (activity_id,))
+    activity = cur.fetchone()
+    cur.close()
+    return activity
