@@ -1,17 +1,15 @@
-from pydantic import BaseModel
-from typing import Optional, List
+from typing import Dict, List, Optional
 from typing_extensions import TypedDict
+from pydantic import BaseModel, Field
 
 class PlanItinIn(BaseModel):
-    user_stay_days: Optional[int] = 3
-    max_hours_per_day: Optional[int] = 12
+    trip_preferences: Dict[str, int] = Field(default_factory=dict)
 
-class LLMLocation(TypedDict):
+class LLMLocation(TypedDict, total=False):  # total=False allows optional keys
     name: str
-    latitude: float
-    longitude: float
-    suggested_visit_hours: int
-    priority: int
+    address: str
+    category: str
+    photo_url: Optional[str]  
 
 class PlanItinOut(BaseModel):
-    itinerary: dict[str, List[LLMLocation]]
+    categories: Dict[str, List[LLMLocation]]
