@@ -2,7 +2,7 @@ import os
 import re
 import json
 import concurrent.futures
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 import requests
 from fastapi import APIRouter, HTTPException
@@ -29,6 +29,7 @@ def get_next_client():
     api_key = API_KEYS[_current_key_index]
     print(f"[Gemini] Using API key index: {_current_key_index}")
     return genai.Client(api_key=api_key)
+
 
 # --- Google Places API ---
 GOOGLE_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
@@ -79,14 +80,14 @@ def resolve_place_photo(name: str, address: Optional[str] = None) -> Optional[st
             f"?maxwidth=400&photo_reference={photo_ref}&key={GOOGLE_API_KEY}"
         )
 
-        # --- Resolve the redirect once ---
+        # Resolve redirect to final CDN URL
         try:
             r = requests.get(photo_url, allow_redirects=True, timeout=5)
             if r.status_code == 200:
-                return r.url   # ✅ final CDN URL
+                return r.url
         except Exception as e:
             print(f"[Places API] Could not resolve redirect for {name}: {e}")
-            return photo_url  # fallback: still return the API link
+            return photo_url  # fallback
 
     except Exception as e:
         print(f"[Places API] Failed to fetch photo for {name}: {e}")
@@ -100,6 +101,8 @@ router = APIRouter(prefix="/llm", tags=["Gemini LLM"])
 def test():
     return {"message": "Gemini LLM Endpoint", "success": True}
 
+
+# ---------------- Itinerary API ----------------
 @router.post(
     "/",
     response_model=PlanItinOut,
@@ -110,19 +113,51 @@ def test():
     },
 )
 def plan_itinerary(request: PlanItinIn):
+    """
+    Generate itinerary (names + addresses only, no photos).
+    """
     try:
         prefs = request.trip_preferences or {}
-        print(
-            f"trip_preferences={prefs}"
-        )
-        result = generate_itinerary(
-            prefs,
-        )
+        print(f"trip_preferences={prefs}")
+        result = generate_itinerary(prefs)
         return {"categories": result}
     except HTTPException:
         raise
     except Exception as e:
         return {"categories": {}, "error": f"Unexpected error: {e}"}
+
+
+
+@router.post("/photos")
+def get_places_photos(places: List[Dict[str, str]]):
+    """
+    Resolve multiple photo URLs in parallel.
+    Input: [{ "name": "...", "address": "..." }]
+    Output: { "results": { "Place Name": "url", ... } }
+    """
+
+    def worker(p: Dict[str, str]):
+        name = p.get("name")
+        addr = p.get("address")
+        url = resolve_place_photo(name, addr)
+        return name, url
+
+    results = {}
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            future_to_place = {executor.submit(worker, p): p for p in places}
+            for future in concurrent.futures.as_completed(future_to_place):
+                try:
+                    name, url = future.result()
+                    results[name] = url
+                except Exception as e:
+                    print(f"[Photos API] Failed to fetch for {future_to_place[future]}: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Batch photo fetch error: {e}")
+
+    return {"results": results}
+
+
 
 # --- Core Itinerary Logic ---
 def generate_itinerary(
@@ -236,7 +271,8 @@ def generate_itinerary(
                         "name": name,
                         "address": addr,
                         "category": cat,
-                        "photo_url": resolve_place_photo(name, addr),
+                        "photo_url": None,        #  Do not block with photo lookup
+                        "photo_pending": True,    #  frontend fetches later
                         "preference_score": score,
                     }
                 )
@@ -259,6 +295,7 @@ def generate_itinerary(
             a.pop("preference_score", None)
 
     return categories_output
+
 
 # --- Gemini utilities ---
 def call_gemini_once(prompt: str, model: str = "gemini-2.5-flash-lite", timeout: int = 40):
