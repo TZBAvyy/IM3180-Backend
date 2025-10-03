@@ -31,66 +31,40 @@ def get_next_client():
     return genai.Client(api_key=api_key)
 
 
-# --- Google Places API ---
-GOOGLE_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
-if not GOOGLE_API_KEY:
-    print(" Warning: GOOGLE_MAPS_API_KEY not set. Photos will not be resolved.")
+# --- Unsplash API (Free Photos) ---
+UNSPLASH_KEY = os.getenv("UNSPLASH_ACCESS_KEY")
+if not UNSPLASH_KEY:
+    print(" Warning: UNSPLASH_ACCESS_KEY not set. Photos will not be resolved.")
 
 def resolve_place_photo(name: str, address: Optional[str] = None) -> Optional[str]:
     """
-    Look up a place via Google Places API and return a direct photo URL (not redirect).
+    Look up a place via Unsplash API and return a photo URL.
     """
-    if not GOOGLE_API_KEY:
+    if not UNSPLASH_KEY:
         return None
     try:
-        query = f"{name}, Singapore"
+        query = f"{name} Singapore"
         if address and "not available" not in address.lower():
             query = f"{name}, {address}, Singapore"
 
-        url = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json"
+        url = "https://api.unsplash.com/search/photos"
         resp = requests.get(
             url,
             params={
-                "input": query,
-                "inputtype": "textquery",
-                "fields": "photos,place_id",
-                "key": GOOGLE_API_KEY,
+                "query": query,
+                "per_page": 1,
+                "orientation": "landscape",
+                "client_id": UNSPLASH_KEY,
             },
             timeout=5,
         )
         data = resp.json()
-        if data.get("status") != "OK":
+        results = data.get("results", [])
+        if not results:
             return None
-
-        candidates = data.get("candidates", [])
-        if not candidates:
-            return None
-
-        photos = candidates[0].get("photos", [])
-        if not photos:
-            return None
-
-        photo_ref = photos[0].get("photo_reference")
-        if not photo_ref:
-            return None
-
-        # Build the photo API link
-        photo_url = (
-            f"https://maps.googleapis.com/maps/api/place/photo"
-            f"?maxwidth=400&photo_reference={photo_ref}&key={GOOGLE_API_KEY}"
-        )
-
-        # Resolve redirect to final CDN URL
-        try:
-            r = requests.get(photo_url, allow_redirects=True, timeout=5)
-            if r.status_code == 200:
-                return r.url
-        except Exception as e:
-            print(f"[Places API] Could not resolve redirect for {name}: {e}")
-            return photo_url  # fallback
-
+        return results[0]["urls"]["regular"]  # Medium-quality image
     except Exception as e:
-        print(f"[Places API] Failed to fetch photo for {name}: {e}")
+        print(f"[Unsplash API] Failed to fetch photo for {name}: {e}")
         return None
 
 
@@ -127,7 +101,6 @@ def plan_itinerary(request: PlanItinIn):
         return {"categories": {}, "error": f"Unexpected error: {e}"}
 
 
-
 @router.post("/photos")
 def get_places_photos(places: List[Dict[str, str]]):
     """
@@ -156,7 +129,6 @@ def get_places_photos(places: List[Dict[str, str]]):
         raise HTTPException(status_code=500, detail=f"Batch photo fetch error: {e}")
 
     return {"results": results}
-
 
 
 # --- Core Itinerary Logic ---
@@ -271,8 +243,8 @@ def generate_itinerary(
                         "name": name,
                         "address": addr,
                         "category": cat,
-                        "photo_url": None,        #  Do not block with photo lookup
-                        "photo_pending": True,    #  frontend fetches later
+                        "photo_url": None,        # frontend fetches later
+                        "photo_pending": True,
                         "preference_score": score,
                     }
                 )
