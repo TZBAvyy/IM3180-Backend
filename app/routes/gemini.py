@@ -243,11 +243,21 @@ def generate_itinerary(
                         "name": name,
                         "address": addr,
                         "category": cat,
-                        "photo_url": None,        # frontend fetches later
+                        "photo_url": None,
                         "photo_pending": True,
                         "preference_score": score,
+                        "latitude": None,
+                        "longitude": None,
+                        "place_id": None,
                     }
                 )
+
+                geo = resolve_latlng_from_address(addr)
+                if geo:
+                    categories_output[cat][-1]["latitude"] = geo["latitude"]
+                    categories_output[cat][-1]["longitude"] = geo["longitude"]
+                    categories_output[cat][-1]["place_id"] = geo["place_id"]
+                    
             except Exception as e:
                 print(f"Skipping activity in {cat} due to error: {e}")
                 continue
@@ -314,3 +324,25 @@ def safe_parse_llm_output(llm_text: str):
             except Exception:
                 continue
     raise ValueError("Could not parse JSON from LLM output")
+
+def resolve_latlng_from_address(address: str, timeout: float = 5.0) -> Optional[Dict[str, float]]:
+    """
+    Resolve an address string into latitude/longitude using Google Geocoding API.
+    """
+    GOOGLE_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
+    if not GOOGLE_API_KEY or not address:
+        return None
+    try:
+        resp = requests.get(
+            "https://maps.googleapis.com/maps/api/geocode/json",
+            params={"address": address, "key": GOOGLE_API_KEY},
+            timeout=timeout,
+        )
+        data = resp.json()
+        if data.get("status") == "OK" and data.get("results"):
+            loc = data["results"][0]["geometry"]["location"]
+            pid = data["results"][0].get("place_id")
+            return {"latitude": loc["lat"], "longitude": loc["lng"], "place_id": pid}
+    except Exception as e:
+        print(f"[Geocode Error] {e}")
+    return None

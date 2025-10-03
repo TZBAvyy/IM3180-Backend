@@ -9,7 +9,10 @@ class LLMLocation(TypedDict, total=False):  # total=False allows optional keys
     name: str
     address: str
     category: str
-    photo_url: Optional[str]  
+    photo_url: Optional[str]
+    latitude: Optional[float]
+    longitude: Optional[float]
+    place_id: Optional[str]
 
 class PlanItinOut(BaseModel):
     categories: Dict[str, List[LLMLocation]]
