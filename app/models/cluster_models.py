@@ -1,71 +1,113 @@
-from pydantic import BaseModel
-from typing import Optional
-from typing_extensions import TypedDict
+from pydantic import BaseModel, Field, model_validator
+from typing import Optional, List
+
+
+# ----------------------------
+# Input Models
+# ----------------------------
+
+class LocationIn(BaseModel):
+    place_id: Optional[str] = Field(
+        None, description="Google Place ID if available. If given, latitude/longitude can be omitted."
+    )
+    latitude: Optional[float] = Field(
+        None, description="Latitude of the location. Required if place_id is not provided."
+    )
+    longitude: Optional[float] = Field(
+        None, description="Longitude of the location. Required if place_id is not provided."
+    )
+    priority: int = Field(..., description="Priority score of this location")
+    stay_hours: float = Field(..., description="Planned stay duration at this location (hours)")
+
+    @model_validator(mode="after")
+    def check_coordinates_or_placeid(self):
+        """Ensure at least one of (place_id) OR (latitude+longitude) is provided."""
+        if not self.place_id and (self.latitude is None or self.longitude is None):
+            raise ValueError(
+                "Each location must provide either place_id or both latitude and longitude"
+            )
+        return self
+
 
 class ClusterIn(BaseModel):
-    locations_sorted: list[list[float]]  # Each location: [latitude, longitude, priority, stay_hours]
-    requested_days: Optional[int] = 3
-    max_hours_per_day: Optional[int] = 12
+    locations_sorted: List[LocationIn]
+    requested_days: Optional[int] = Field(3, description="Number of days requested for trip")
+    max_hours_per_day: Optional[int] = Field(12, description="Maximum hours available per day")
+    keyword_hint: Optional[str] = Field(None, description="Optional user-provided hint to bias place_id lookup")
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "locations_sorted": [
-                    [1.290270, 103.851959, 1, 2],  # [latitude, longitude, priority, stay_hours]
-                    [1.352083, 103.819836, 2, 3],
-                    [1.283333, 103.833333, 3, 4],
-                    [1.300000, 103.800000, 2, 5],
-                    [1.310000, 103.820000, 1, 2]
-                ]
+                    {"latitude": 1.290270, "longitude": 103.851959, "priority": 1, "stay_hours": 2},
+                    {"place_id": "ChIJd7zN_thp2jERcf0cKlU5n9A", "priority": 2, "stay_hours": 3},
+                    {"latitude": 1.283333, "longitude": 103.833333, "priority": 3, "stay_hours": 4},
+                ],
+                "requested_days": 2,
+                "max_hours_per_day": 8
             }
         }
+    }
 
-class Location(TypedDict):
-    latitude: float
-    longitude: float
-    priority: int
-    stay_hours: int
-    cluster_id: int
+
+# ----------------------------
+# Output Models
+# ----------------------------
+
+class LocationOut(BaseModel):
+    latitude: float = Field(..., description="Latitude of the location")
+    longitude: float = Field(..., description="Longitude of the location")
+    priority: int = Field(..., description="Priority score of this location")
+    stay_hours: float = Field(..., description="Planned stay duration at this location (hours)")
+    cluster_id: int = Field(..., description="Cluster ID assigned by DBSCAN")
+    place_id: Optional[str] = Field(None, description="Resolved Google Place ID (if available)")
+
+
+class DayOut(BaseModel):
+    day: int = Field(..., description="Day number")
+    locations: List[LocationOut]
+
+
+class Solution1Out(BaseModel):
+    day1: List[LocationOut]
+    rejected: List[LocationOut]
+
 
 class ClusterOut(BaseModel):
-    solution1: dict[list[Location], list[Location]]  # 'day1' and 'rejected'
-    solution2: list[dict[int, list[Location]]]  # List of days with locations
+    solution1: Solution1Out
+    solution2: List[DayOut]
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "solution1": {
                     "day1": [
-                        {"latitude": 1.290270, "longitude": 103.851959, "priority": 1, "stay_hours": 2, "cluster_id": 0},
-                        {"latitude": 1.310000, "longitude": 103.820000, "priority": 1, "stay_hours": 2, "cluster_id": 0}
+                        {
+                            "latitude": 1.290270,
+                            "longitude": 103.851959,
+                            "priority": 1,
+                            "stay_hours": 2,
+                            "cluster_id": 0,
+                            "place_id": "ChIJd7zN_thp2jERcf0cKlU5n9A"
+                        }
                     ],
-                    "rejected": [
-                        {"latitude": 1.352083, "longitude": 103.819836, "priority": 2, "stay_hours": 3, "cluster_id": 1},
-                        {"latitude": 1.283333, "longitude": 103.833333, "priority": 3, "stay_hours": 4, "cluster_id": 1},
-                        {"latitude": 1.300000, "longitude": 103.800000, "priority": 2, "stay_hours": 5, "cluster_id": 2}
-                    ]
+                    "rejected": []
                 },
                 "solution2": [
                     {
                         "day": 1,
                         "locations": [
-                            {"latitude": 1.290270, "longitude": 103.851959, "priority": 1, "stay_hours": 2, "cluster_id": 0},
-                            {"latitude": 1.310000, "longitude": 103.820000, "priority": 1, "stay_hours": 2, "cluster_id": 0}
-                        ]
-                    },
-                    {
-                        "day": 2,
-                        "locations": [
-                            {"latitude": 1.352083, "longitude": 103.819836, "priority": 2, "stay_hours": 3, "cluster_id": 1},
-                            {"latitude": 1.283333, "longitude": 103.833333, "priority": 3, "stay_hours": 4, "cluster_id": 1}
-                        ]
-                    },
-                    {
-                        "day": 3,
-                        "locations": [
-                            {"latitude": 1.300000, "longitude": 103.800000, "priority": 2, "stay_hours": 5, "cluster_id": 2}
+                            {
+                                "latitude": 1.352083,
+                                "longitude": 103.819836,
+                                "priority": 2,
+                                "stay_hours": 3,
+                                "cluster_id": 1,
+                                "place_id": "ChIJ..."
+                            }
                         ]
                     }
                 ]
             }
         }
+    }
