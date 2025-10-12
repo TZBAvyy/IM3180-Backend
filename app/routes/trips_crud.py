@@ -231,3 +231,84 @@ def create_full_trip(body: dict, conn=Depends(get_db)):
         conn.rollback()
         cur.close()
         raise HTTPException(400, f"Failed to create trip: {e}")
+
+# ---------------- DELETE ----------------
+@router.delete("/activities/{activity_id}", status_code=204)
+def delete_activity(activity_id: int, conn=Depends(get_db)):
+    cur = conn.cursor(dictionary=True)
+    
+    # Check if activity exists
+    cur.execute("SELECT * FROM activities WHERE id=%s", (activity_id,))
+    activity = cur.fetchone()
+    if not activity:
+        cur.close()
+        raise HTTPException(404, "Activity not found")
+    
+    # Delete the activity
+    cur.execute("DELETE FROM activities WHERE id=%s", (activity_id,))
+    conn.commit()
+    cur.close()
+    
+    return None  # 204 No Content
+
+@router.delete("/days/{day_id}", status_code=204)
+def delete_day(day_id: int, conn=Depends(get_db)):
+    cur = conn.cursor(dictionary=True)
+    
+    # Check if day exists
+    cur.execute("SELECT * FROM day_trips WHERE id=%s", (day_id,))
+    day = cur.fetchone()
+    if not day:
+        cur.close()
+        raise HTTPException(404, "Day trip not found")
+    
+    try:
+        # Delete all activities for this day
+        cur.execute("DELETE FROM activities WHERE day_trip_id=%s", (day_id,))
+        
+        # Delete the day trip
+        cur.execute("DELETE FROM day_trips WHERE id=%s", (day_id,))
+        
+        conn.commit()
+        cur.close()
+        return None  # 204 No Content
+        
+    except Exception as e:
+        conn.rollback()
+        cur.close()
+        raise HTTPException(400, f"Failed to delete day trip: {e}")
+    
+@router.delete("/{trip_id}", status_code=204)
+def delete_trip(trip_id: int, conn=Depends(get_db)):
+    cur = conn.cursor(dictionary=True)
+    
+    # Check if trip exists
+    cur.execute("SELECT * FROM trips WHERE id=%s", (trip_id,))
+    trip = cur.fetchone()
+    if not trip:
+        cur.close()
+        raise HTTPException(404, "Trip not found")
+    
+    try:
+        # Get all day_trips for this trip
+        cur.execute("SELECT id FROM day_trips WHERE trip_id=%s", (trip_id,))
+        days = cur.fetchall()
+        
+        # Delete all activities for each day
+        for day in days:
+            cur.execute("DELETE FROM activities WHERE day_trip_id=%s", (day["id"],))
+        
+        # Delete all day_trips for this trip
+        cur.execute("DELETE FROM day_trips WHERE trip_id=%s", (trip_id,))
+        
+        # Delete the trip itself
+        cur.execute("DELETE FROM trips WHERE id=%s", (trip_id,))
+    
+        conn.commit()
+        cur.close()
+        return None  # 204 No Content
+        
+    except Exception as e:
+        conn.rollback()
+        cur.close()
+        raise HTTPException(400, f"Failed to delete trip: {e}")
