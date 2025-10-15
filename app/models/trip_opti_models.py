@@ -35,9 +35,9 @@ class TripOptiIn(BaseModel):
         }
 
 class TripAddress(TypedDict):
-    name: str
     place_id: str
     arrival_time: str  # predicted arrival time at each address
+    service_time: int # service time of each address (from input)
     type: str  # "Start", "Lunch", "Dinner", "Attraction", "End"
 
 class TripOptiOut(BaseModel):
