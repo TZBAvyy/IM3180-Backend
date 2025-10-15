@@ -30,7 +30,7 @@ class TripOptiIn(BaseModel):
                     "placeID-dinner",
                 ],
                 "hotel_index": 0,
-                "service_times": [60, 60, 60]
+                "service_times": [0, 20, 60, 60, 60]
             }
         }
 
@@ -48,51 +48,51 @@ class TripOptiOut(BaseModel):
             "example": {
                 "route": [
                     {
-                    "name": "Hotel Boss",
                     "place_id": "ChIJYakjWbYZ2jERgSiDZRBS8OY",
                     "arrival_time": "09:00",
+                    "service_time": 0,
                     "type": "Start"
                     },
                     {
-                    "name": "Saizeriya @ Marina Square",
                     "place_id": "ChIJC00vnUgZ2jERodPEc17Iv3Q",
-                    "arrival_time": "11:17",
+                    "arrival_time": "11:22",
+                    "service_time": 120,
                     "type": "Lunch"
                     },
                     {
-                    "name": "Singapore Flyer",
                     "place_id": "ChIJzVHFNqkZ2jERboLN2YrltH8",
-                    "arrival_time": "11:58",
+                    "arrival_time": "12:03",
+                    "service_time": 30,
                     "type": "Attraction"
                     },
                     {
-                    "name": "McDonald's Boat Quay",
-                    "place_id": "ChIJWT0bvgsZ2jERM7sHz6m87gE",
-                    "arrival_time": "13:18",
-                    "type": "Attraction"
-                    },
-                    {
-                    "name": "Sentosa",
                     "place_id": "ChIJRYMSeKwe2jERAR2QXVU39vg",
-                    "arrival_time": "16:03",
+                    "arrival_time": "14:50",
+                    "service_time": 120,
                     "type": "Attraction"
                     },
                     {
-                    "name": "Chinatown Hawker Center",
+                    "place_id": "ChIJ42h1onIZ2jERBbs-VGqmwrs",
+                    "arrival_time": "17:40",
+                    "service_time": 120,
+                    "type": "Attraction"
+                    },
+                    {
                     "place_id": "ChIJgftoQGYZ2jERYN5VifWB6Ms",
-                    "arrival_time": "17:22",
+                    "arrival_time": "18:11",
+                    "service_time": 30,
                     "type": "Dinner"
                     },
                     {
-                    "name": "Chinatown",
-                    "place_id": "ChIJ42h1onIZ2jERBbs-VGqmwrs",
-                    "arrival_time": "19:23",
+                    "place_id": "ChIJWT0bvgsZ2jERM7sHz6m87gE",
+                    "arrival_time": "19:25",
+                    "service_time": 60,
                     "type": "Attraction"
                     },
                     {
-                    "name": "Hotel Boss",
                     "place_id": "ChIJYakjWbYZ2jERgSiDZRBS8OY",
-                    "arrival_time": "19:47",
+                    "arrival_time": "19:43",
+                    "service_time": 0,
                     "type": "End"
                     }
                 ]

@@ -51,7 +51,7 @@ def get_optimized_route(request: TripOptiIn):
     # --- Google API call for Time Matrix---
     try:
         time_matrix = get_time_matrix(addresses)
-        eateries = identify_eateries(addresses)
+        [place_names, eateries] = identify_eateries(addresses)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Google Maps Routes API error: {e}")
     if len(eateries) < 2:
@@ -161,6 +161,7 @@ def _format_solution(routing, manager, time_dimension, solution, data: dict):
         route_item = {}
         route_item["place_id"] = data['placeIDs'][node]
         route_item["arrival_time"] = f"{data['start_hour'] + time_val // 60:02d}:{time_val % 60:02d}"
+        route_item["service_time"] = data["service_times"][node]
 
         if node == data['depot']:
             route_item["type"] = "Start"
@@ -178,6 +179,7 @@ def _format_solution(routing, manager, time_dimension, solution, data: dict):
     final = {
         "place_id": data['placeIDs'][data['depot']],
         "arrival_time": f"{data['start_hour'] + return_time // 60:02d}:{return_time % 60:02d}",
+        "service_time":data["service_times"][data['depot']],
         "type": "End"
     }
     route.append(final)
