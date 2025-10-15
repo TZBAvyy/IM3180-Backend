@@ -60,7 +60,6 @@ Example:
         "ChIJgftoQGYZ2jERYN5VifWB6Ms",
         "ChIJWT0bvgsZ2jERM7sHz6m87gE"
     ], 
-    "eatery_indexes": [4,5,6],
     "hotel_index":0, 
     "service_times":[0, 30, 120, 120, 120, 30, 60]
 }
@@ -69,7 +68,6 @@ Example:
 |-------------------|-------------|-----------------|----------------------------------------------------------------------------------------------------|
 | addresses         | **True**    | array[n] of str | Array of place ids of hotel, food places and attractions, <br>must be equal length to service_times                             |
 | hotel_index       | **True**    | int             | Index of  starting node in addresses                                                                           |
-| eatery_indexes    | **True**    | array[>2] of int| Indexes of eatery spots (can dine in) in addresses                                                                           |
 | service_times     | **True**    | array[n] of int | Array of expected time spent at each address listed in mins, <br>must be equal length to addresses |
 | start_hour        | **False**   | int             | Expected time of day start (e.g 13 => 1pm start), <br>default: 9 (9am)                             |
 | end_hour          | **False**   | int             | Expected time of day end, <br>default: 21 (9pm)                                                    |
