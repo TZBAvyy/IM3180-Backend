@@ -131,7 +131,6 @@ def _enrich_loc_with_place_id(loc: dict, keyword_hint: str | None = None) -> dic
         loc["latitude"] = float(new_lat)
         loc["longitude"] = float(new_lng)
     else:
-        # Even if API fails, keep original lat/lng
         loc["place_id"] = None
         loc["latitude"] = float(lat)
         loc["longitude"] = float(lng)
