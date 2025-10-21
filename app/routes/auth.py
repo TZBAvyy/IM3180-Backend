@@ -212,7 +212,7 @@ def update_profile_picture(
 
     try:
         key = f"user-{uid}/{file.filename}"
-        s3_client.upload_fileobj(file.file, S3_BUCKET, key, ExtraArgs={"ACL": "public-read"})
+        s3_client.upload_fileobj(file.file, S3_BUCKET, key)
         s3_url = f"https://{S3_BUCKET}.s3.{S3_REGION}.amazonaws.com/{key}"
     except (BotoCoreError, ClientError) as e:
         logger.error(f"S3 upload error for user {uid}: {e}")
