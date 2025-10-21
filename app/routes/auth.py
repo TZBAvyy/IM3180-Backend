@@ -17,21 +17,29 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from pydantic import BaseModel
 
+
 class ForgotPasswordIn(BaseModel):
     email: str
+
 
 class ForgotPasswordOut(BaseModel):
     reset_token: str
     expires_in: int
 
+
 class ProfileUpdateIn(BaseModel):
     name: str
     email: str
 
+
+class ResetPasswordIn(BaseModel):
+    reset_token: str
+    new_password: str
+
+
 S3_BUCKET = os.getenv("AWS_S3_BUCKET_NAME", "trip-opt-bucket")
 S3_REGION = os.getenv("AWS_REGION", "ap-southeast-2")
 s3_client = boto3.client("s3", region_name=S3_REGION)
-
 
 # --- Setup global constants ---
 
@@ -47,19 +55,11 @@ security = HTTPBearer()
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+
 @router.post("/signup", status_code=201, responses={
-    201: {
-        "model": MeOut,
-        "description": "Successful Creation"
-    },
-    400: {
-        "model": HTTPError,
-        "description": "Password < 8 characters"
-    },
-    409: {
-        "model": HTTPError,
-        "description": "Email already registered"
-    }
+    201: {"model": MeOut, "description": "Successful Creation"},
+    400: {"model": HTTPError, "description": "Password < 8 characters"},
+    409: {"model": HTTPError, "description": "Email already registered"}
 })
 def signup(body: SignupIn, conn=Depends(get_db)):
     if len(body.password) < 8:
@@ -72,37 +72,23 @@ def signup(body: SignupIn, conn=Depends(get_db)):
         raise HTTPException(409, "Email already registered")
     return MeOut(id=user_id, email=body.email, name=body.name or "")
 
+
 @router.post("/login", responses={
-    200: {
-        "model": TokenOut,
-        "description": "Successful Response"
-    },
-    401: {
-        "model": HTTPError,
-        "description": "Invalid email or password"
-    }
+    200: {"model": TokenOut, "description": "Successful Response"},
+    401: {"model": HTTPError, "description": "Invalid email or password"}
 })
 def login(body: LoginIn, conn=Depends(get_db)):
     row = get_user_by_email(conn, body.email)
     if not row or not verify_password(body.password, row["password_hash"]):
         logger.warning("Failed login attempt for email=%s", body.email)
-        # Generic message → don’t reveal if email exists
-        raise HTTPException(401,"Invalid email or password")
+        raise HTTPException(401, "Invalid email or password")
     return create_token(row["id"], row["email"])
 
+
 @router.get("/me", responses={
-    200: {
-        "model": MeOut,
-        "description": "Successful Response"
-    },
-    401: {
-        "model": HTTPError,
-        "description": "Invalid or expired token"
-    },
-    404: {
-        "model": HTTPError,
-        "description": "User not found"
-    }
+    200: {"model": MeOut, "description": "Successful Response"},
+    401: {"model": HTTPError, "description": "Invalid or expired token"},
+    404: {"model": HTTPError, "description": "User not found"}
 })
 def me(creds: HTTPAuthorizationCredentials = Depends(security), conn=Depends(get_db)):
     token = creds.credentials
@@ -118,6 +104,7 @@ def me(creds: HTTPAuthorizationCredentials = Depends(security), conn=Depends(get
     if not row:
         raise HTTPException(404, "User not found")
     return MeOut(**row)
+
 
 @router.get("/profile-picture", responses={
     200: {"description": "Returns user's profile picture URL"},
@@ -142,6 +129,7 @@ def get_profile_picture(creds: HTTPAuthorizationCredentials = Depends(security),
         raise HTTPException(404, "Profile picture not found")
 
     return {"profile_picture_url": row["profile_picture_url"]}
+
 
 @router.get("/profile", responses={
     200: {"description": "Combined user profile info"},
@@ -172,6 +160,35 @@ def get_full_profile(creds: HTTPAuthorizationCredentials = Depends(security), co
         "profile_picture_url": row.get("profile_picture_url")
     }
 
+
+@router.post("/reset-password", responses={
+    200: {"description": "Password reset successful"},
+    400: {"model": HTTPError, "description": "Invalid token or bad input"},
+    404: {"model": HTTPError, "description": "User not found"},
+})
+def reset_password(body: ResetPasswordIn, conn=Depends(get_db)):
+    """Verify reset token and update password."""
+    try:
+        payload = jwt.decode(body.reset_token, SECRET_KEY, algorithms=[JWT_ALG])
+        if payload.get("action") != "password_reset":
+            raise HTTPException(400, "Invalid token action")
+        uid = int(payload["sub"])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(400, "Reset token expired")
+    except Exception:
+        raise HTTPException(400, "Invalid reset token")
+
+    if len(body.new_password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
+
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET password_hash=%s WHERE id=%s", (hash_password(body.new_password), uid))
+    conn.commit()
+    cur.close()
+
+    return {"message": "Password reset successful"}
+
+
 @router.post("/forgot-password", responses={
     200: {"model": ForgotPasswordOut, "description": "Password reset token generated"},
     404: {"model": HTTPError, "description": "User not found"},
@@ -191,6 +208,7 @@ def forgot_password(body: ForgotPasswordIn, conn=Depends(get_db)):
     token = jwt.encode(payload, SECRET_KEY, algorithm=JWT_ALG)
 
     return ForgotPasswordOut(reset_token=token, expires_in=15 * 60)
+
 
 @router.put("/update-profile-picture", responses={
     200: {"description": "Profile picture updated successfully"},
@@ -225,6 +243,7 @@ def update_profile_picture(
 
     return {"message": "Profile picture updated", "profile_picture_url": s3_url}
 
+
 @router.put("/update-profile", responses={
     200: {"description": "Profile updated successfully"},
     400: {"model": HTTPError, "description": "Invalid input"},
@@ -246,10 +265,9 @@ def update_profile(
         raise HTTPException(401, "Invalid or expired token")
 
     cur = conn.cursor(dictionary=True)
-
-    # Check if email is already used by another user
     cur.execute("SELECT id FROM users WHERE email=%s AND id!=%s", (email, uid))
     existing = cur.fetchone()
+
     if existing:
         cur.close()
         raise HTTPException(409, "Email already taken")
@@ -260,10 +278,12 @@ def update_profile(
 
     return {"message": "Profile updated successfully", "name": name, "email": email}
 
-# --- Authentication Helper Function ---
+
+# --- Authentication Helper Functions ---
 
 def hash_password(raw: str) -> str:
     return bcrypt.hashpw(raw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
 
 def verify_password(raw: str, hashed: str) -> bool:
     try:
@@ -271,11 +291,13 @@ def verify_password(raw: str, hashed: str) -> bool:
     except Exception:
         return False
 
+
 def create_token(user_id: int, email: str) -> TokenOut:
     exp = datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRE_MINUTES)
     payload = {"sub": str(user_id), "email": email, "exp": exp}
     token = jwt.encode(payload, SECRET_KEY, algorithm=JWT_ALG)
     return TokenOut(access_token=token, expires_in=JWT_EXPIRE_MINUTES * 60)
+
 
 def get_user_by_email(conn, email: str):
     cur = conn.cursor(dictionary=True)
@@ -283,6 +305,7 @@ def get_user_by_email(conn, email: str):
     row = cur.fetchone()
     cur.close()
     return row
+
 
 def create_user(conn, email: str, name: str, password: str):
     cur = conn.cursor()
@@ -304,5 +327,3 @@ def create_user(conn, email: str, name: str, password: str):
         return None
     finally:
         cur.close()
-
-        
