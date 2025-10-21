@@ -232,7 +232,8 @@ def update_profile_picture(
     409: {"model": HTTPError, "description": "Email already taken"},
 })
 def update_profile(
-    body: ProfileUpdateIn,
+    name: str = Form(...),
+    email: str = Form(...),
     creds: HTTPAuthorizationCredentials = Depends(security),
     conn=Depends(get_db),
 ):
