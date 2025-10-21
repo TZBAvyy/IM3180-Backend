@@ -24,6 +24,9 @@ class ForgotPasswordOut(BaseModel):
     reset_token: str
     expires_in: int
 
+class ProfileUpdateIn(BaseModel):
+    name: str
+    email: str
 
 S3_BUCKET = os.getenv("AWS_S3_BUCKET_NAME", "trip-opt-bucket")
 S3_REGION = os.getenv("AWS_REGION", "ap-southeast-2")
@@ -229,10 +232,9 @@ def update_profile_picture(
     409: {"model": HTTPError, "description": "Email already taken"},
 })
 def update_profile(
+    body: ProfileUpdateIn,
     creds: HTTPAuthorizationCredentials = Depends(security),
     conn=Depends(get_db),
-    name: str = Form(...),
-    email: str = Form(...),
 ):
     """Update user's name and email."""
     token = creds.credentials
