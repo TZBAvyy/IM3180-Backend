@@ -288,7 +288,8 @@ def forgot_password(body: ForgotPasswordIn, conn=Depends(get_db)):
     token = jwt.encode(payload, SECRET_KEY, algorithm=JWT_ALG)
 
     # Build the frontend link
-    reset_link = f"https://yourfrontend.com/reset-password?token={token}"
+    FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+    reset_link = f"{FRONTEND_URL}/PasswordReset?token={token}"
 
     # Send email
     send_reset_email(user["email"], reset_link)
