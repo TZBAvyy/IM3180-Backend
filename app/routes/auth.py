@@ -11,6 +11,25 @@ from app.models.auth_models import SignupIn, LoginIn, MeOut, TokenOut
 from app.models.error_models import HTTPError
 from app.db.mysql_pool import get_db
 
+from fastapi import UploadFile, File, Form
+import boto3
+from botocore.exceptions import BotoCoreError, ClientError
+
+from pydantic import BaseModel
+
+class ForgotPasswordIn(BaseModel):
+    email: str
+
+class ForgotPasswordOut(BaseModel):
+    reset_token: str
+    expires_in: int
+
+
+S3_BUCKET = os.getenv("AWS_S3_BUCKET_NAME", "tripopt-profile-pics")
+S3_REGION = os.getenv("AWS_REGION", "ap-southeast-1")
+s3_client = boto3.client("s3", region_name=S3_REGION)
+
+
 # --- Setup global constants ---
 
 logger = logging.getLogger("auth")
@@ -97,6 +116,112 @@ def me(creds: HTTPAuthorizationCredentials = Depends(security), conn=Depends(get
         raise HTTPException(404, "User not found")
     return MeOut(**row)
 
+@router.get("/profile-picture", responses={
+    200: {"description": "Returns user's profile picture URL"},
+    401: {"model": HTTPError, "description": "Invalid or expired token"},
+    404: {"model": HTTPError, "description": "User not found or no picture set"}
+})
+def get_profile_picture(creds: HTTPAuthorizationCredentials = Depends(security), conn=Depends(get_db)):
+    """Return the user's current profile picture URL."""
+    token = creds.credentials
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[JWT_ALG])
+        uid = int(payload["sub"])
+    except Exception:
+        raise HTTPException(401, "Invalid or expired token")
+
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT profile_picture_url FROM users WHERE id=%s", (uid,))
+    row = cur.fetchone()
+    cur.close()
+
+    if not row or not row["profile_picture_url"]:
+        raise HTTPException(404, "Profile picture not found")
+
+    return {"profile_picture_url": row["profile_picture_url"]}
+
+@router.get("/profile", responses={
+    200: {"description": "Combined user profile info"},
+    401: {"model": HTTPError, "description": "Invalid or expired token"},
+    404: {"model": HTTPError, "description": "User not found"}
+})
+def get_full_profile(creds: HTTPAuthorizationCredentials = Depends(security), conn=Depends(get_db)):
+    """Return combined user info including profile picture."""
+    token = creds.credentials
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[JWT_ALG])
+        uid = int(payload["sub"])
+    except Exception:
+        raise HTTPException(401, "Invalid or expired token")
+
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT id, email, name, profile_picture_url FROM users WHERE id=%s", (uid,))
+    row = cur.fetchone()
+    cur.close()
+
+    if not row:
+        raise HTTPException(404, "User not found")
+
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "email": row["email"],
+        "profile_picture_url": row.get("profile_picture_url")
+    }
+
+@router.post("/forgot-password", responses={
+    200: {"model": ForgotPasswordOut, "description": "Password reset token generated"},
+    404: {"model": HTTPError, "description": "User not found"},
+})
+def forgot_password(body: ForgotPasswordIn, conn=Depends(get_db)):
+    """Generate a short-lived password reset token for the given email."""
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT id, email FROM users WHERE email=%s", (body.email,))
+    user = cur.fetchone()
+    cur.close()
+
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    exp = datetime.now(timezone.utc) + timedelta(minutes=15)
+    payload = {"sub": str(user["id"]), "email": user["email"], "exp": exp, "action": "password_reset"}
+    token = jwt.encode(payload, SECRET_KEY, algorithm=JWT_ALG)
+
+    return ForgotPasswordOut(reset_token=token, expires_in=15 * 60)
+
+@router.put("/profile-picture", responses={
+    200: {"description": "Profile picture updated successfully"},
+    400: {"model": HTTPError, "description": "Upload failed"},
+    401: {"model": HTTPError, "description": "Invalid or expired token"},
+})
+def update_profile_picture(
+    creds: HTTPAuthorizationCredentials = Depends(security),
+    file: UploadFile = File(...),
+    conn=Depends(get_db)
+):
+    """Upload a new profile picture to S3 and update the user's URL."""
+    token = creds.credentials
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[JWT_ALG])
+        uid = int(payload["sub"])
+    except Exception:
+        raise HTTPException(401, "Invalid or expired token")
+
+    try:
+        key = f"user-{uid}/{file.filename}"
+        s3_client.upload_fileobj(file.file, S3_BUCKET, key, ExtraArgs={"ACL": "public-read"})
+        s3_url = f"https://{S3_BUCKET}.s3.{S3_REGION}.amazonaws.com/{key}"
+    except (BotoCoreError, ClientError) as e:
+        logger.error(f"S3 upload error for user {uid}: {e}")
+        raise HTTPException(400, "Failed to upload profile picture")
+
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET profile_picture_url=%s WHERE id=%s", (s3_url, uid))
+    conn.commit()
+    cur.close()
+
+    return {"message": "Profile picture updated", "profile_picture_url": s3_url}
+
 # --- Authentication Helper Function ---
 
 def hash_password(raw: str) -> str:
@@ -141,3 +266,5 @@ def create_user(conn, email: str, name: str, password: str):
         return None
     finally:
         cur.close()
+
+        
