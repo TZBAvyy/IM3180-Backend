@@ -17,14 +17,13 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from pydantic import BaseModel
 
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.utils import formataddr
 
 class ForgotPasswordIn(BaseModel):
     email: str
-
-
-class ForgotPasswordOut(BaseModel):
-    reset_token: str
-    expires_in: int
 
 
 class ProfileUpdateIn(BaseModel):
@@ -33,6 +32,7 @@ class ProfileUpdateIn(BaseModel):
 
 
 class ResetPasswordIn(BaseModel):
+    email: str
     reset_token: str
     new_password: str
 
@@ -50,6 +50,60 @@ SECRET_KEY = os.getenv("SECRET_KEY", "change-me")
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "60"))
 
 security = HTTPBearer()
+# --- Function for Email Sending ---
+
+# --- Email Setup ---
+EMAIL_SENDER = os.getenv("EMAIL_SENDER", "")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "")
+EMAIL_SMTP_SERVER = os.getenv("EMAIL_SMTP_SERVER", "smtp.gmail.com")
+EMAIL_SMTP_PORT = int(os.getenv("EMAIL_SMTP_PORT", "465"))
+
+
+def send_reset_email(to_email: str, reset_link: str):
+    """Send a password reset email using Gmail SMTP."""
+    if not EMAIL_SENDER or not EMAIL_PASSWORD:
+        logger.error("Email credentials not configured properly.")
+        raise HTTPException(500, "Email sending is not configured.")
+
+    subject = "Trip Planner - Password Reset Request"
+    text_body = f"""
+    You requested to reset your password.
+    Click the link below to reset it (valid for 15 minutes):
+
+    {reset_link}
+
+    If you did not request this, you can safely ignore this message.
+    """
+    html_body = f"""
+    <html>
+      <body>
+        <p>Hi there,</p>
+        <p>Click below to reset your password (valid for 15 minutes):</p>
+        <p><a href="{reset_link}">{reset_link}</a></p>
+        <p>If you didn’t request this, just ignore this email.</p>
+        <br>
+        <p>— Trip Planner Team</p>
+      </body>
+    </html>
+    """
+
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = formataddr(("Trip Planner", EMAIL_SENDER))
+        msg["To"] = to_email
+        msg.attach(MIMEText(text_body, "plain"))
+        msg.attach(MIMEText(html_body, "html"))
+
+        with smtplib.SMTP_SSL(EMAIL_SMTP_SERVER, EMAIL_SMTP_PORT) as server:
+            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+            server.send_message(msg)
+
+        logger.info(f"Password reset email sent to {to_email}")
+    except Exception as e:
+        logger.error(f"Failed to send email to {to_email}: {e}")
+        raise HTTPException(500, "Failed to send reset email")
+
 
 # --- Auth Routes ---
 
@@ -167,22 +221,47 @@ def get_full_profile(creds: HTTPAuthorizationCredentials = Depends(security), co
     404: {"model": HTTPError, "description": "User not found"},
 })
 def reset_password(body: ResetPasswordIn, conn=Depends(get_db)):
-    """Verify reset token and update password."""
+    """Verify reset token, match email, and update password."""
     try:
         payload = jwt.decode(body.reset_token, SECRET_KEY, algorithms=[JWT_ALG])
         if payload.get("action") != "password_reset":
             raise HTTPException(400, "Invalid token action")
         uid = int(payload["sub"])
+        token_email = payload.get("email")
     except jwt.ExpiredSignatureError:
         raise HTTPException(400, "Reset token expired")
     except Exception:
         raise HTTPException(400, "Invalid reset token")
 
+    # --- Validate input ---
     if len(body.new_password) < 8:
         raise HTTPException(400, "Password must be at least 8 characters")
 
-    cur = conn.cursor()
-    cur.execute("UPDATE users SET password_hash=%s WHERE id=%s", (hash_password(body.new_password), uid))
+    # Optional: include email in the request model and match it
+    # Update ResetPasswordIn accordingly:
+    # class ResetPasswordIn(BaseModel):
+    #     email: str
+    #     reset_token: str
+    #     new_password: str
+
+    # Validate email matches token email
+    if hasattr(body, "email"):
+        if body.email.lower() != token_email.lower():
+            raise HTTPException(400, "Email does not match reset token")
+
+    # --- Verify that user exists ---
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT id, email FROM users WHERE id=%s", (uid,))
+    user = cur.fetchone()
+    if not user:
+        cur.close()
+        raise HTTPException(404, "User not found")
+
+    # --- Update password ---
+    cur.execute(
+        "UPDATE users SET password_hash=%s WHERE id=%s",
+        (hash_password(body.new_password), uid)
+    )
     conn.commit()
     cur.close()
 
@@ -190,11 +269,11 @@ def reset_password(body: ResetPasswordIn, conn=Depends(get_db)):
 
 
 @router.post("/forgot-password", responses={
-    200: {"model": ForgotPasswordOut, "description": "Password reset token generated"},
+    200: {"description": "Password reset email sent"},
     404: {"model": HTTPError, "description": "User not found"},
 })
 def forgot_password(body: ForgotPasswordIn, conn=Depends(get_db)):
-    """Generate a short-lived password reset token for the given email."""
+    """Generate a short-lived password reset token and email it to the user."""
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT id, email FROM users WHERE email=%s", (body.email,))
     user = cur.fetchone()
@@ -203,11 +282,18 @@ def forgot_password(body: ForgotPasswordIn, conn=Depends(get_db)):
     if not user:
         raise HTTPException(404, "User not found")
 
+    # Create reset token
     exp = datetime.now(timezone.utc) + timedelta(minutes=15)
     payload = {"sub": str(user["id"]), "email": user["email"], "exp": exp, "action": "password_reset"}
     token = jwt.encode(payload, SECRET_KEY, algorithm=JWT_ALG)
 
-    return ForgotPasswordOut(reset_token=token, expires_in=15 * 60)
+    # Build the frontend link
+    reset_link = f"https://yourfrontend.com/reset-password?token={token}"
+
+    # Send email
+    send_reset_email(user["email"], reset_link)
+
+    return {"message": "Password reset email sent successfully."}
 
 
 @router.put("/update-profile-picture", responses={
