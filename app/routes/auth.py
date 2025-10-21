@@ -192,7 +192,7 @@ def forgot_password(body: ForgotPasswordIn, conn=Depends(get_db)):
 
     return ForgotPasswordOut(reset_token=token, expires_in=15 * 60)
 
-@router.put("/profile-picture", responses={
+@router.put("/update/profile-picture", responses={
     200: {"description": "Profile picture updated successfully"},
     400: {"model": HTTPError, "description": "Upload failed"},
     401: {"model": HTTPError, "description": "Invalid or expired token"},
@@ -225,7 +225,7 @@ def update_profile_picture(
 
     return {"message": "Profile picture updated", "profile_picture_url": s3_url}
 
-@router.put("/profile", responses={
+@router.put("/update/profile", responses={
     200: {"description": "Profile updated successfully"},
     400: {"model": HTTPError, "description": "Invalid input"},
     401: {"model": HTTPError, "description": "Invalid or expired token"},
