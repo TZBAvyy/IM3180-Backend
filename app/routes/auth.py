@@ -25,8 +25,8 @@ class ForgotPasswordOut(BaseModel):
     expires_in: int
 
 
-S3_BUCKET = os.getenv("AWS_S3_BUCKET_NAME", "tripopt-profile-pics")
-S3_REGION = os.getenv("AWS_REGION", "ap-southeast-1")
+S3_BUCKET = os.getenv("AWS_S3_BUCKET_NAME", "trip-opt-bucket")
+S3_REGION = os.getenv("AWS_REGION", "ap-southeast-2")
 s3_client = boto3.client("s3", region_name=S3_REGION)
 
 
@@ -221,6 +221,41 @@ def update_profile_picture(
     cur.close()
 
     return {"message": "Profile picture updated", "profile_picture_url": s3_url}
+
+@router.put("/profile", responses={
+    200: {"description": "Profile updated successfully"},
+    400: {"model": HTTPError, "description": "Invalid input"},
+    401: {"model": HTTPError, "description": "Invalid or expired token"},
+    409: {"model": HTTPError, "description": "Email already taken"},
+})
+def update_profile(
+    creds: HTTPAuthorizationCredentials = Depends(security),
+    conn=Depends(get_db),
+    name: str = Form(...),
+    email: str = Form(...),
+):
+    """Update user's name and email."""
+    token = creds.credentials
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[JWT_ALG])
+        uid = int(payload["sub"])
+    except Exception:
+        raise HTTPException(401, "Invalid or expired token")
+
+    cur = conn.cursor(dictionary=True)
+
+    # Check if email is already used by another user
+    cur.execute("SELECT id FROM users WHERE email=%s AND id!=%s", (email, uid))
+    existing = cur.fetchone()
+    if existing:
+        cur.close()
+        raise HTTPException(409, "Email already taken")
+
+    cur.execute("UPDATE users SET name=%s, email=%s WHERE id=%s", (name, email, uid))
+    conn.commit()
+    cur.close()
+
+    return {"message": "Profile updated successfully", "name": name, "email": email}
 
 # --- Authentication Helper Function ---
 
