@@ -2,7 +2,7 @@ import os
 import re
 import json
 import concurrent.futures
-from typing import Dict, Optional, List, Any
+from typing import Dict, Optional, List, Any, Set
 
 import requests
 from fastapi import APIRouter, HTTPException
@@ -118,6 +118,19 @@ def get_next_client():
     api_key = API_KEYS[_current_key_index]
     print(f"[Gemini] Using API key index: {_current_key_index}")
     return genai.Client(api_key=api_key)
+
+
+def normalize_location_key(name: Optional[str], city: Optional[str], address: Optional[str]) -> str:
+    """
+    Produce a normalized key for deduplicating locations across attempts.
+    """
+    def clean(value: Optional[str]) -> str:
+        if not isinstance(value, str):
+            return ""
+        return re.sub(r"\s+", " ", value).strip().lower()
+
+    parts = [clean(name), clean(city), clean(address)]
+    return "|".join(parts)
 
 
 # --- Unsplash API (Free Photos) ---
@@ -356,7 +369,7 @@ def generate_itinerary(
     for cat in allowed_categories:
         hints = CATEGORY_KEYWORDS.get(cat, [])
         if hints:
-            keyword_guidance_lines.append(f"- {cat}: {', '.join(hints)}")
+            keyword_guidance_lines.append(f"- {cat}: {', '.join(hints[:5])}")
     keyword_guidance = (
         "\n".join(keyword_guidance_lines)
         if keyword_guidance_lines
@@ -371,7 +384,69 @@ def generate_itinerary(
         )
     language_guidance = "\n".join(language_guidance_lines)
 
-    def build_prompt(extra_guidance: str = "", attempt: int = 1) -> str:
+    def build_avoid_list(current_output: Dict[str, list], limit: int = 40) -> List[str]:
+        """
+        Build a deduplicated, ordered list of existing locations to help the LLM avoid repeats.
+        """
+        seen: Set[str] = set()
+        ordered: List[str] = []
+        for cat in allowed_categories:
+            for activity in current_output.get(cat, []):
+                if not isinstance(activity, dict):
+                    continue
+                name = activity.get("name")
+                city_val = activity.get("city")
+                if not isinstance(name, str) or not isinstance(city_val, str):
+                    continue
+                label = f"{name.strip()} ({city_val.strip()})"
+                if not label or label in seen:
+                    continue
+                seen.add(label)
+                ordered.append(label)
+                if len(ordered) >= limit:
+                    return ordered
+        return ordered
+
+    def compute_remaining_state(current_output: Dict[str, list]):
+        """
+        Calculate outstanding category and city allocations based on the accumulated output.
+        """
+        category_remaining = {
+            cat: max(0, category_quotas.get(cat, 0) - len(current_output.get(cat, [])))
+            for cat in allowed_categories
+        }
+        city_remaining = {city: city_target_totals[city] for city in cleaned_cities}
+        category_city_remaining = {
+            city: {cat: category_city_targets[city][cat] for cat in allowed_categories}
+            for city in cleaned_cities
+        }
+
+        for cat, activities in current_output.items():
+            if cat not in category_remaining:
+                continue
+            for activity in activities:
+                if not isinstance(activity, dict):
+                    continue
+                city_val = activity.get("city")
+                if not isinstance(city_val, str):
+                    continue
+                canonical_city = allowed_city_lookup.get(city_val.strip().lower(), city_val.strip())
+                if canonical_city not in city_remaining:
+                    continue
+                city_remaining[canonical_city] = max(0, city_remaining[canonical_city] - 1)
+                if cat in category_city_remaining[canonical_city]:
+                    category_city_remaining[canonical_city][cat] = max(
+                        0, category_city_remaining[canonical_city][cat] - 1
+                    )
+
+        return category_remaining, city_remaining, category_city_remaining
+
+    def build_prompt(
+        extra_guidance: str = "",
+        attempt: int = 1,
+        avoided_locations: Optional[List[str]] = None,
+        compact: bool = False,
+    ) -> str:
         retry_block = ""
         if extra_guidance:
             guidance_lines = "\n".join(f"    {line}" for line in extra_guidance.strip().splitlines())
@@ -379,6 +454,46 @@ def generate_itinerary(
     Retry guidance (attempt #{attempt}):
 {guidance_lines}
     You must correct every remaining slot listed above within this attempt."""
+
+        avoid_block = ""
+        if avoided_locations:
+            avoid_lines = "\n".join(f"    - {place}" for place in avoided_locations)
+            avoid_block = f"""
+    Locations already selected (do not repeat any of these):
+{avoid_lines}
+    Only suggest brand new places not listed above."""
+
+        if compact:
+            compact_keyword_hint = "Keep the list varied and authentic; avoid duplicate places or chains."
+            compact_language_hint = "Verify addresses belong to the specified city; transliterations are acceptable."
+            return f"""
+    You are planning activities only in: {cities_inline}.
+    Summarized preferences: {prefs_text}.
+    Respond with strict JSON keyed by "categories".
+
+    Constraints:
+    - Total activities: {activities_total}
+    - Exactly {max_locations_per_city} per city ({", ".join(f"{city}={city_target_totals[city]}" for city in cleaned_cities)})
+    - Category quotas (must match precisely):
+    {quota_guidance}
+    - City/category allocations (every cell required):
+    {category_city_guidance}
+{retry_block}{avoid_block}
+
+    Guidance:
+    - {compact_keyword_hint}
+    - {compact_language_hint}
+    - Allowed categories only: {allowed_cats_text}
+    - Each item requires name, address, city (exactly one of the listed cities).
+
+    JSON schema (no markdown or commentary):
+    {{
+      "categories": {{
+        "Food Tour": [{{"name": "...", "address": "...", "city": "..."}}, ...],
+        ...
+      }}
+    }}
+    """
 
         return f"""
     You are a travel planner working only with these cities: {cities_inline}.
@@ -395,8 +510,8 @@ def generate_itinerary(
     - City totals to fulfill: {", ".join(f"{city} = {city_target_totals[city]}" for city in cleaned_cities)}
     - City/category allocations (each pair must be satisfied exactly):
     {category_city_guidance}
-    - Your list must be fresh for each attempt—no duplicate locations across attempts.
-{retry_block}
+    - Your list must be fresh for each attempt - no duplicate locations across attempts.
+{retry_block}{avoid_block}
     - Suggested keyword hints per category (use to find distinctive spots):
     {keyword_guidance}
     - Native-language search guidance (apply when researching places):
@@ -438,7 +553,12 @@ def generate_itinerary(
     Return ONLY valid JSON.
     """
 
-    def run_single_attempt(prompt: str, attempt: int) -> tuple[Dict[str, list], Dict[str, int], Dict[str, int], Dict[str, Dict[str, int]]]:
+
+    def run_single_attempt(
+        prompt: str,
+        attempt: int,
+        forbidden_keys: Optional[Set[str]] = None,
+    ) -> tuple[Dict[str, list], Dict[str, int], Dict[str, int], Dict[str, Dict[str, int]]]:
         try:
             print(f"[Gemini] Attempt {attempt}: requesting itinerary for {', '.join(cleaned_cities)}")
             response = call_gemini_once(prompt)
@@ -458,24 +578,21 @@ def generate_itinerary(
         category_city_remaining = {
             city: category_city_targets[city].copy() for city in cleaned_cities
         }
+        attempt_seen_keys: Set[str] = set()
 
         for cat, activities in llm_categories.items():
             if cat not in valid_categories:
                 continue
-            for a in activities:
+            for activity in activities:
                 try:
-                    weight = (trip_preferences.get(cat, 0) / total_weight) if total_weight else 0
-                    score = min(
-                        100.0,
-                        max(0.0, float(a.get("preference_score", 50)) * (0.5 + weight)),
-                    )
-                    name = a.get("name", "Unknown")
-                    addr = a.get("address", "Address not available")
-                    raw_city = a.get("city")
+                    name = activity.get("name") or "Unknown"
+                    address_value = activity.get("address", "Address not available")
+                    addr = address_value if isinstance(address_value, str) else str(address_value)
+                    raw_city = activity.get("city")
                     city_name = None
                     if isinstance(raw_city, str):
                         city_name = allowed_city_lookup.get(raw_city.strip().lower())
-                    addr_lower = addr.lower() if isinstance(addr, str) else ""
+                    addr_lower = addr.lower()
                     if not city_name and addr_lower:
                         for city_lower, city_proper in allowed_city_lookup.items():
                             if city_lower in addr_lower:
@@ -491,6 +608,11 @@ def generate_itinerary(
                         continue
                     if category_city_remaining[city_name].get(cat, 0) <= 0:
                         continue
+                    key = normalize_location_key(name, city_name, addr)
+                    if key in attempt_seen_keys:
+                        continue
+                    if forbidden_keys and key in forbidden_keys:
+                        continue
 
                     categories_output[cat].append(
                         {
@@ -500,41 +622,18 @@ def generate_itinerary(
                             "category": cat,
                             "photo_url": None,
                             "photo_pending": False,
-                            "preference_score": score,
                             "latitude": None,
                             "longitude": None,
                             "place_id": None,
                         }
                     )
+                    attempt_seen_keys.add(key)
                     category_remaining[cat] -= 1
                     city_remaining[city_name] -= 1
                     category_city_remaining[city_name][cat] -= 1
 
-                    geo = resolve_latlng_from_address(
-                        addr,
-                        city_name,
-                        allowed_city_variants,
-                        allowed_city_lookup,
-                    )
-                    if geo and geo.get("matched_city_ok"):
-                        categories_output[cat][-1]["latitude"] = geo["latitude"]
-                        categories_output[cat][-1]["longitude"] = geo["longitude"]
-                        categories_output[cat][-1]["place_id"] = geo["place_id"]
-                        if geo.get("matched_city"):
-                            matched_canonical = allowed_city_lookup.get(
-                                geo["matched_city"].lower(),
-                                categories_output[cat][-1]["city"],
-                            )
-                            categories_output[cat][-1]["city"] = matched_canonical
-                    else:
-                        categories_output[cat].pop()
-                        category_remaining[cat] += 1
-                        city_remaining[city_name] += 1
-                        category_city_remaining[city_name][cat] += 1
-                        continue
-
-                except Exception as e:
-                    print(f"Skipping activity in {cat} due to error: {e}")
+                except Exception as err:
+                    print(f"Skipping activity in {cat} due to error: {err}")
                     continue
 
         for cat, remaining in category_remaining.items():
@@ -550,34 +649,100 @@ def generate_itinerary(
                 if remaining > 0:
                     print(f"[Attempt {attempt}] City {city} / Category {cat} underfilled: missing {remaining}")
 
-        for cat in categories_output:
-            for a in categories_output[cat]:
-                a.pop("preference_score", None)
-
         return categories_output, category_remaining, city_remaining, category_city_remaining
 
     max_attempts = 3
-    severe_underfill_threshold = 5
     retry_guidance = ""
-    best_output: Optional[Dict[str, list]] = None
-    last_city_remaining: Optional[Dict[str, int]] = None
-    last_category_city_remaining: Optional[Dict[str, Dict[str, int]]] = None
+    accumulated_output: Dict[str, List[Dict[str, Any]]] = {cat: [] for cat in allowed_categories}
+    seen_location_keys: Set[str] = set()
+    geocode_cache: Dict[str, Optional[Dict[str, Any]]] = {}
+
+    category_remaining, city_remaining, category_city_remaining = compute_remaining_state(accumulated_output)
 
     for attempt in range(1, max_attempts + 1):
-        prompt = build_prompt(retry_guidance, attempt)
-        output, category_remaining, city_remaining, category_city_remaining = run_single_attempt(prompt, attempt)
-        best_output = output
-        last_city_remaining = city_remaining
-        last_category_city_remaining = category_city_remaining
+        avoid_for_prompt = build_avoid_list(accumulated_output)
+        use_compact_prompt = attempt == 1 and not retry_guidance
+        prompt = build_prompt(
+            retry_guidance,
+            attempt,
+            avoid_for_prompt if avoid_for_prompt else None,
+            compact=use_compact_prompt,
+        )
+        output, _, _, _ = run_single_attempt(prompt, attempt, seen_location_keys)
 
-        severe_deficits = {
-            city: remaining for city, remaining in city_remaining.items() if remaining > severe_underfill_threshold
-        }
-        if not severe_deficits:
+        for cat, activities in output.items():
+            if cat not in accumulated_output:
+                continue
+            for activity in activities:
+                if not isinstance(activity, dict):
+                    continue
+                name = activity.get("name")
+                address_value = activity.get("address", "")
+                city_value = activity.get("city")
+                if not isinstance(name, str) or not isinstance(city_value, str):
+                    continue
+                if category_remaining.get(cat, 0) <= 0:
+                    continue
+                addr = address_value if isinstance(address_value, str) else str(address_value)
+                canonical_guess = allowed_city_lookup.get(city_value.strip().lower(), city_value.strip())
+                initial_key = normalize_location_key(name, canonical_guess, addr)
+                if initial_key in seen_location_keys:
+                    continue
+
+                if initial_key in geocode_cache:
+                    geo = geocode_cache[initial_key]
+                else:
+                    geo = resolve_latlng_from_address(
+                        addr,
+                        canonical_guess,
+                        allowed_city_variants,
+                        allowed_city_lookup,
+                    )
+                    geocode_cache[initial_key] = geo
+
+                if not (geo and geo.get("matched_city_ok")):
+                    continue
+                final_city = canonical_guess
+                if geo.get("matched_city"):
+                    matched_canonical = allowed_city_lookup.get(
+                        geo["matched_city"].lower(),
+                        final_city,
+                    )
+                    if matched_canonical:
+                        final_city = matched_canonical
+                final_key = normalize_location_key(name, final_city, addr)
+                if final_key != initial_key:
+                    geocode_cache[final_key] = geo
+                if final_key in seen_location_keys:
+                    continue
+                if final_city not in city_remaining:
+                    continue
+                if city_remaining.get(final_city, 0) <= 0:
+                    continue
+                if category_city_remaining[final_city].get(cat, 0) <= 0:
+                    continue
+                activity["city"] = final_city
+                activity["latitude"] = geo["latitude"]
+                activity["longitude"] = geo["longitude"]
+                activity["place_id"] = geo.get("place_id")
+                accumulated_output[cat].append(activity)
+                seen_location_keys.add(final_key)
+                category_remaining[cat] -= 1
+                city_remaining[final_city] -= 1
+                category_city_remaining[final_city][cat] -= 1
+
+        category_remaining, city_remaining, category_city_remaining = compute_remaining_state(accumulated_output)
+        if sum(category_remaining.values()) == 0:
+            retry_guidance = ""
+            break
+
+        if attempt == max_attempts:
             break
 
         retry_lines = []
-        for city, remaining in severe_deficits.items():
+        for city, remaining in city_remaining.items():
+            if remaining <= 0:
+                continue
             cat_breakdown = [
                 f"{cat}: {category_city_remaining[city][cat]}"
                 for cat in allowed_categories
@@ -587,33 +752,62 @@ def generate_itinerary(
                 retry_lines.append(f"- {city}: {remaining} slots missing (need {', '.join(cat_breakdown)})")
             else:
                 retry_lines.append(f"- {city}: {remaining} slots missing")
-
+        if not retry_lines:
+            retry_lines.append("- Some slots remain unfilled; provide fresh options for the outstanding city/category pairs.")
         retry_lines.append("- Provide brand new locations that have not appeared in earlier attempts.")
+        retry_lines.append("- Return only the new places needed for the slots above; omit categories that are already full.")
         retry_guidance = "\n".join(retry_lines)
 
-    if best_output is None:
-        best_output = {cat: [] for cat in allowed_categories}
+    category_remaining, city_remaining, category_city_remaining = compute_remaining_state(accumulated_output)
 
-    if last_city_remaining:
-        still_missing = {city: rem for city, rem in last_city_remaining.items() if rem > 0}
-        if still_missing:
-            print(f"[Gemini] Final itinerary still missing slots: {still_missing}")
-            if last_category_city_remaining:
-                for city, cat_map in last_category_city_remaining.items():
-                    for cat, rem in cat_map.items():
-                        if rem > 0:
-                            print(f"[Gemini] Outstanding -> {city} / {cat}: {rem}")
+    for city, remaining in city_remaining.items():
+        if remaining > 0:
+            print(f"[Gemini] City {city} still short by {remaining} after {max_attempts} attempts")
 
-    return best_output
+    for cat, remaining in category_remaining.items():
+        if remaining > 0:
+            print(f"[Gemini] Category {cat} still short by {remaining} after {max_attempts} attempts")
+
+    for city, cat_map in category_city_remaining.items():
+        for cat, remaining in cat_map.items():
+            if remaining > 0:
+                print(f"[Gemini] Outstanding -> {city} / {cat}: {remaining}")
+
+    return accumulated_output
+
+
 
 
 # --- Gemini utilities ---
 def call_gemini_once(prompt: str, model: str = "gemini-2.5-flash", timeout: int = 50):
     client = get_next_client()
+
+    def _generate():
+        tuned_kwargs = {
+            "candidate_count": 1,
+            "temperature": 0.7,
+            "top_p": 0.95,
+            "max_output_tokens": 4096,
+            "response_mime_type": "application/json",
+        }
+        try:
+            return client.models.generate_content(
+                model=model,
+                contents=prompt,
+                **tuned_kwargs,
+            )
+        except TypeError:
+            return client.models.generate_content(
+                model=model,
+                contents=prompt,
+            )
+
     try:
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            fut = executor.submit(client.models.generate_content, model=model, contents=prompt)
-            resp = fut.result(timeout=timeout)
+            fut = executor.submit(
+                _generate,
+            )
+        resp = fut.result(timeout=timeout)
         if hasattr(resp, "text"):
             return resp
         else:

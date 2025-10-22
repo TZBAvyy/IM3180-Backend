@@ -37,7 +37,7 @@ def get_clusters_given_all_locations(data: ClusterIn) -> ClusterOut:
         raise HTTPException(status_code=400, detail="Missing required fields")
 
     # --- Preprocess locations: allow place_id or lat/lng ---
-    processed_locations = []
+    processed_locations: list[dict] = []
     for loc in data.locations_sorted:
         if loc.place_id and (loc.latitude is None or loc.longitude is None):
             latlng = resolve_latlng_from_placeid(loc.place_id)
@@ -49,67 +49,144 @@ def get_clusters_given_all_locations(data: ClusterIn) -> ClusterOut:
         else:
             raise HTTPException(status_code=400, detail="Each location must have either place_id or lat/lng")
 
-        processed_locations.append((lat, lng, loc.priority, loc.stay_hours))
+        processed_locations.append(
+            {
+                "latitude": float(lat),
+                "longitude": float(lng),
+                "priority": int(loc.priority),
+                "stay_hours": float(loc.stay_hours),
+                "place_id": loc.place_id,
+            }
+        )
 
-    requested_days = data.requested_days
-    max_hours_per_day = data.max_hours_per_day
+    requested_days = max(1, data.requested_days or 1)
+    max_hours_per_day = max(1, data.max_hours_per_day or 1)
 
     # --- Run clustering ---
-    coords = np.array([(lat, lon) for lat, lon, _, _ in processed_locations])
+    coords = np.array([(loc["latitude"], loc["longitude"]) for loc in processed_locations])
     db = DBSCAN(eps=0.0225, min_samples=1).fit(coords)
     labels = db.labels_
 
-    locations_data = [
-        (lat, lon, priority, stay, label)
-        for (lat, lon, priority, stay), label in zip(processed_locations, labels)
-    ]
+    for loc, label in zip(processed_locations, labels):
+        loc["cluster_id"] = int(label)
 
     # --- Group into clusters ---
     clusters_dict = {}
-    for loc in locations_data:
-        clusters_dict.setdefault(loc[4], []).append(loc)
+    for loc in processed_locations:
+        clusters_dict.setdefault(loc["cluster_id"], []).append(loc)
 
     # --- Solution 1 (greedy by priority, limited hours) ---
-    sorted_by_priority = sorted(locations_data, key=lambda x: x[2])
-    current_day_hours = 0
-    solution1_day1, solution1_rejected = [], []
+    sorted_by_priority = sorted(processed_locations, key=lambda x: x["priority"])
+    day_slots: list[list[dict]] = [[] for _ in range(requested_days)]
+    day_hours = [0.0 for _ in range(requested_days)]
+    solution1_rejected: list[dict] = []
+
     for loc in sorted_by_priority:
-        if current_day_hours + loc[3] <= max_hours_per_day:
-            solution1_day1.append(loc)
-            current_day_hours += loc[3]
-        else:
+        placed = False
+        for day_idx in range(requested_days):
+            if day_hours[day_idx] + loc["stay_hours"] <= max_hours_per_day + 1e-6:
+                day_slots[day_idx].append(loc)
+                day_hours[day_idx] += loc["stay_hours"]
+                placed = True
+                break
+        if not placed:
             solution1_rejected.append(loc)
 
+    solution1_day1 = day_slots[0] if day_slots else []
+
     # --- Solution 2 (split by clusters across days) ---
-    total_stay_hours = sum([loc[3] for loc in locations_data])
+    total_stay_hours = sum(loc["stay_hours"] for loc in processed_locations)
     min_days_needed = ceil(total_stay_hours / max_hours_per_day)
     num_days = max(requested_days, min_days_needed)
 
-    cluster_ids = sorted(clusters_dict.keys())
-    clusters_per_day = ceil(len(cluster_ids) / num_days)
-    solution2_days = []
-    for day in range(num_days):
-        start_idx = day * clusters_per_day
-        end_idx = start_idx + clusters_per_day
-        day_cluster_ids = cluster_ids[start_idx:end_idx]
-        day_locs = []
-        for cid in day_cluster_ids:
-            day_locs.extend(clusters_dict[cid])
-        solution2_days.append(day_locs)
+    day_buckets: list[list[dict]] = [[] for _ in range(num_days)]
+    day_bucket_hours = [0.0 for _ in range(num_days)]
+    overflow_locations: list[dict] = []
+
+    cluster_order = sorted(
+        clusters_dict.items(),
+        key=lambda item: min(loc["priority"] for loc in item[1]),
+    )
+
+    for _, cluster_locs in cluster_order:
+        cluster_sorted = sorted(cluster_locs, key=lambda loc: loc["priority"])
+        cluster_hours = sum(loc["stay_hours"] for loc in cluster_sorted)
+        remaining = [max_hours_per_day - used for used in day_bucket_hours]
+        best_day = max(range(num_days), key=lambda idx: remaining[idx])
+
+        if cluster_hours <= remaining[best_day]:
+            day_buckets[best_day].extend(cluster_sorted)
+            day_bucket_hours[best_day] += cluster_hours
+            continue
+
+        for loc in cluster_sorted:
+            day_indices = sorted(
+                range(num_days),
+                key=lambda idx: max_hours_per_day - day_bucket_hours[idx],
+                reverse=True,
+            )
+            placed = False
+            for day_idx in day_indices:
+                if day_bucket_hours[day_idx] + loc["stay_hours"] <= max_hours_per_day + 1e-6:
+                    day_buckets[day_idx].append(loc)
+                    day_bucket_hours[day_idx] += loc["stay_hours"]
+                    placed = True
+                    break
+            if not placed:
+                overflow_locations.append(loc)
 
     # --- Build response using Pydantic models ---
+    def make_location_out(loc: dict) -> LocationOut:
+        return LocationOut(
+            latitude=float(loc["latitude"]),
+            longitude=float(loc["longitude"]),
+            priority=int(loc["priority"]),
+            stay_hours=float(loc["stay_hours"]),
+            cluster_id=int(loc["cluster_id"]),
+            place_id=loc.get("place_id"),
+        )
+
+    solution2_days = [
+        DayOut(
+            day=day_idx + 1,
+            locations=[make_location_out(loc) for loc in day_locs],
+        )
+        for day_idx, day_locs in enumerate(day_buckets)
+        if day_locs
+    ]
+
+    overflow_signatures = set()
+    for loc in overflow_locations:
+        key = (
+            round(loc["latitude"], 6),
+            round(loc["longitude"], 6),
+            loc.get("place_id"),
+            loc["priority"],
+        )
+        if key not in overflow_signatures:
+            solution1_rejected.append(loc)
+            overflow_signatures.add(key)
+
+    rejected_unique: list[dict] = []
+    rejected_seen = set()
+    for loc in solution1_rejected:
+        key = (
+            round(loc["latitude"], 6),
+            round(loc["longitude"], 6),
+            loc.get("place_id"),
+            loc["priority"],
+        )
+        if key in rejected_seen:
+            continue
+        rejected_seen.add(key)
+        rejected_unique.append(loc)
+
     response = ClusterOut(
         solution1=Solution1Out(
-            day1=[LocationOut(latitude=loc[0], longitude=loc[1], priority=loc[2], stay_hours=loc[3], cluster_id=loc[4]) for loc in solution1_day1],
-            rejected=[LocationOut(latitude=loc[0], longitude=loc[1], priority=loc[2], stay_hours=loc[3], cluster_id=loc[4]) for loc in solution1_rejected],
+            day1=[make_location_out(loc) for loc in solution1_day1],
+            rejected=[make_location_out(loc) for loc in rejected_unique],
         ),
-        solution2=[
-            DayOut(
-                day=day_idx + 1,
-                locations=[LocationOut(latitude=loc[0], longitude=loc[1], priority=loc[2], stay_hours=loc[3], cluster_id=loc[4]) for loc in day_locs],
-            )
-            for day_idx, day_locs in enumerate(solution2_days)
-        ],
+        solution2=solution2_days,
     )
 
     # --- Enrich with place_ids (concurrent) ---
@@ -123,6 +200,10 @@ def _enrich_loc_with_place_id(loc: dict, keyword_hint: str | None = None) -> dic
     """Enrich location dict with place_id and corrected lat/lng."""
     lat = float(loc["latitude"])
     lng = float(loc["longitude"])
+    if loc.get("place_id"):
+        loc["latitude"] = lat
+        loc["longitude"] = lng
+        return loc
     result = resolve_place_id(lat, lng, keyword=keyword_hint)
 
     if result:
