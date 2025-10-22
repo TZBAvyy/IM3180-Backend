@@ -233,7 +233,7 @@ def create_full_trip(body: dict, conn=Depends(get_db)):
         raise HTTPException(400, f"Failed to create trip: {e}")
 
 # ---------------- DELETE ----------------
-@router.delete("/activities/{activity_id}", status_code=204)
+@router.delete("/del/activities/{activity_id}", status_code=204)
 def delete_activity(activity_id: int, conn=Depends(get_db)):
     cur = conn.cursor(dictionary=True)
     
@@ -251,7 +251,7 @@ def delete_activity(activity_id: int, conn=Depends(get_db)):
     
     return None  # 204 No Content
 
-@router.delete("/days/{day_id}", status_code=204)
+@router.delete("/del/days/{day_id}", status_code=204)
 def delete_day(day_id: int, conn=Depends(get_db)):
     cur = conn.cursor(dictionary=True)
     
@@ -278,7 +278,7 @@ def delete_day(day_id: int, conn=Depends(get_db)):
         cur.close()
         raise HTTPException(400, f"Failed to delete day trip: {e}")
     
-@router.delete("/{trip_id}", status_code=204)
+@router.delete("/del/{trip_id}", status_code=204)
 def delete_trip(trip_id: int, conn=Depends(get_db)):
     cur = conn.cursor(dictionary=True)
     
