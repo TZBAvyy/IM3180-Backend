@@ -6,7 +6,14 @@ import os
 import requests
 import concurrent.futures
 
-from app.models.cluster_models import ClusterIn, ClusterOut, LocationOut, DayOut, Solution1Out
+from app.models.cluster_models import (
+    ClusterIn,
+    ClusterOut,
+    LocationOut,
+    DayOut,
+    UserPreferenceSolutionOut,
+    OptimalSolutionOut,
+)
 from app.models.error_models import HTTPError
 
 # --- Cluster Route ---
@@ -75,29 +82,35 @@ def get_clusters_given_all_locations(data: ClusterIn) -> ClusterOut:
     for loc in processed_locations:
         clusters_dict.setdefault(loc["cluster_id"], []).append(loc)
 
-    # --- Solution 1 (greedy by priority, limited hours) ---
-    sorted_by_priority = sorted(processed_locations, key=lambda x: x["priority"])
+    # --- User Preference Solution (follow input order within requested days) ---
     day_slots: list[list[dict]] = [[] for _ in range(requested_days)]
     day_hours = [0.0 for _ in range(requested_days)]
     solution1_rejected: list[dict] = []
+    current_day_idx = 0
 
-    for loc in sorted_by_priority:
-        placed = False
-        for day_idx in range(requested_days):
-            if day_hours[day_idx] + loc["stay_hours"] <= max_hours_per_day + 1e-6:
-                day_slots[day_idx].append(loc)
-                day_hours[day_idx] += loc["stay_hours"]
-                placed = True
-                break
-        if not placed:
+    for loc in processed_locations:
+        if current_day_idx >= requested_days:
             solution1_rejected.append(loc)
+            continue
 
-    solution1_day1 = day_slots[0] if day_slots else []
+        if day_hours[current_day_idx] + loc["stay_hours"] <= max_hours_per_day + 1e-6:
+            day_slots[current_day_idx].append(loc)
+            day_hours[current_day_idx] += loc["stay_hours"]
+            continue
 
-    # --- Solution 2 (split by clusters across days) ---
+        # advance to the next day until we find space or exhaust requested days
+        while current_day_idx < requested_days and day_hours[current_day_idx] + loc["stay_hours"] > max_hours_per_day + 1e-6:
+            current_day_idx += 1
+        if current_day_idx >= requested_days:
+            solution1_rejected.append(loc)
+        else:
+            day_slots[current_day_idx].append(loc)
+            day_hours[current_day_idx] += loc["stay_hours"]
+
+    # --- Optimal Solution (split by clusters across days/min days) ---
     total_stay_hours = sum(loc["stay_hours"] for loc in processed_locations)
     min_days_needed = ceil(total_stay_hours / max_hours_per_day)
-    num_days = max(requested_days, min_days_needed)
+    num_days = max(1, min_days_needed)
 
     day_buckets: list[list[dict]] = [[] for _ in range(num_days)]
     day_bucket_hours = [0.0 for _ in range(num_days)]
@@ -146,7 +159,15 @@ def get_clusters_given_all_locations(data: ClusterIn) -> ClusterOut:
             place_id=loc.get("place_id"),
         )
 
-    solution2_days = [
+    user_pref_days = [
+        DayOut(
+            day=day_idx + 1,
+            locations=[make_location_out(loc) for loc in day_locs],
+        )
+        for day_idx, day_locs in enumerate(day_slots)
+    ]
+
+    optimal_days = [
         DayOut(
             day=day_idx + 1,
             locations=[make_location_out(loc) for loc in day_locs],
@@ -182,11 +203,13 @@ def get_clusters_given_all_locations(data: ClusterIn) -> ClusterOut:
         rejected_unique.append(loc)
 
     response = ClusterOut(
-        solution1=Solution1Out(
-            day1=[make_location_out(loc) for loc in solution1_day1],
+        user_preference_solution=UserPreferenceSolutionOut(
+            days=user_pref_days,
             rejected=[make_location_out(loc) for loc in rejected_unique],
         ),
-        solution2=solution2_days,
+        optimal_solution=OptimalSolutionOut(
+            days=optimal_days,
+        ),
     )
 
     # --- Enrich with place_ids (concurrent) ---
@@ -224,11 +247,14 @@ def add_place_ids_to_clusters(clusters_response: dict, keyword_hint: str | None 
     """Walk the response shape and add place_id to every location. Done concurrently."""
     targets: list[dict] = []
 
-    for loc in clusters_response.get("solution1", {}).get("day1", []):
+    user_pref = clusters_response.get("user_preference_solution", {})
+    for day in user_pref.get("days", []):
+        for loc in day.get("locations", []):
+            targets.append(loc)
+    for loc in user_pref.get("rejected", []):
         targets.append(loc)
-    for loc in clusters_response.get("solution1", {}).get("rejected", []):
-        targets.append(loc)
-    for day in clusters_response.get("solution2", []):
+    optimal = clusters_response.get("optimal_solution", {})
+    for day in optimal.get("days", []):
         for loc in day.get("locations", []):
             targets.append(loc)
 
