@@ -60,7 +60,6 @@ Example:
         "ChIJgftoQGYZ2jERYN5VifWB6Ms",
         "ChIJWT0bvgsZ2jERM7sHz6m87gE"
     ], 
-    "eatery_indexes": [4,5,6],
     "hotel_index":0, 
     "service_times":[0, 30, 120, 120, 120, 30, 60]
 }
@@ -69,7 +68,6 @@ Example:
 |-------------------|-------------|-----------------|----------------------------------------------------------------------------------------------------|
 | addresses         | **True**    | array[n] of str | Array of place ids of hotel, food places and attractions, <br>must be equal length to service_times                             |
 | hotel_index       | **True**    | int             | Index of  starting node in addresses                                                                           |
-| eatery_indexes    | **True**    | array[>2] of int| Indexes of eatery spots (can dine in) in addresses                                                                           |
 | service_times     | **True**    | array[n] of int | Array of expected time spent at each address listed in mins, <br>must be equal length to addresses |
 | start_hour        | **False**   | int             | Expected time of day start (e.g 13 => 1pm start), <br>default: 9 (9am)                             |
 | end_hour          | **False**   | int             | Expected time of day end, <br>default: 21 (9pm)                                                    |
@@ -87,41 +85,49 @@ Example
     {
       "place_id": "ChIJYakjWbYZ2jERgSiDZRBS8OY",
       "arrival_time": "09:00",
+      "service_time": 0,
       "type": "Start"
     },
     {
       "place_id": "ChIJC00vnUgZ2jERodPEc17Iv3Q",
       "arrival_time": "11:22",
+      "service_time": 120,
       "type": "Lunch"
     },
     {
       "place_id": "ChIJzVHFNqkZ2jERboLN2YrltH8",
       "arrival_time": "12:03",
+      "service_time": 30,
       "type": "Attraction"
     },
     {
       "place_id": "ChIJRYMSeKwe2jERAR2QXVU39vg",
       "arrival_time": "14:50",
+      "service_time": 120,
       "type": "Attraction"
     },
     {
       "place_id": "ChIJ42h1onIZ2jERBbs-VGqmwrs",
       "arrival_time": "17:40",
+      "service_time": 120,
       "type": "Attraction"
     },
     {
       "place_id": "ChIJgftoQGYZ2jERYN5VifWB6Ms",
       "arrival_time": "18:11",
+      "service_time": 30,
       "type": "Dinner"
     },
     {
       "place_id": "ChIJWT0bvgsZ2jERM7sHz6m87gE",
       "arrival_time": "19:25",
+      "service_time": 60,
       "type": "Attraction"
     },
     {
       "place_id": "ChIJYakjWbYZ2jERgSiDZRBS8OY",
       "arrival_time": "19:43",
+      "service_time": 0,
       "type": "End"
     }
   ]

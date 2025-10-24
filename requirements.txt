@@ -2,6 +2,8 @@ absl-py==2.3.1
 annotated-types==0.7.0
 anyio==4.10.0
 bcrypt==4.3.0
+boto3==1.40.56
+botocore==1.40.56
 branca==0.8.1
 cachetools==5.5.2
 certifi==2025.8.3
@@ -25,6 +27,7 @@ httpx==0.28.1
 idna==3.10
 immutabledict==4.2.1
 Jinja2==3.1.6
+jmespath==1.0.1
 joblib==1.5.2
 markdown-it-py==4.0.0
 MarkupSafe==3.0.2
@@ -53,6 +56,7 @@ rich==14.1.0
 rich-toolkit==0.15.0
 rignore==0.6.4
 rsa==4.9.1
+s3transfer==0.14.0
 scikit-learn==1.7.1
 scipy==1.16.1
 sentry-sdk==2.35.1
