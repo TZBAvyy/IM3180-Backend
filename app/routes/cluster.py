@@ -213,13 +213,13 @@ def get_clusters_given_all_locations(data: ClusterIn) -> ClusterOut:
     )
 
     # --- Enrich with place_ids (concurrent) ---
-    enriched = add_place_ids_to_clusters(response.dict(), keyword_hint=data.keyword_hint)
+    enriched = add_place_ids_to_clusters(response.dict())
     return ClusterOut(**enriched)
 
 
 # ---------------- Helper Functions ----------------
 
-def _enrich_loc_with_place_id(loc: dict, keyword_hint: str | None = None) -> dict:
+def _enrich_loc_with_place_id(loc: dict) -> dict:
     """Enrich location dict with place_id and corrected lat/lng."""
     lat = float(loc["latitude"])
     lng = float(loc["longitude"])
@@ -227,7 +227,7 @@ def _enrich_loc_with_place_id(loc: dict, keyword_hint: str | None = None) -> dic
         loc["latitude"] = lat
         loc["longitude"] = lng
         return loc
-    result = resolve_place_id(lat, lng, keyword=keyword_hint)
+    result = resolve_place_id(lat, lng)
 
     if result:
         pid, new_lat, new_lng = result
@@ -243,7 +243,7 @@ def _enrich_loc_with_place_id(loc: dict, keyword_hint: str | None = None) -> dic
 
 
 
-def add_place_ids_to_clusters(clusters_response: dict, keyword_hint: str | None = None, max_workers: int = 12) -> dict:
+def add_place_ids_to_clusters(clusters_response: dict, max_workers: int = 12) -> dict:
     """Walk the response shape and add place_id to every location. Done concurrently."""
     targets: list[dict] = []
 
@@ -259,7 +259,7 @@ def add_place_ids_to_clusters(clusters_response: dict, keyword_hint: str | None 
             targets.append(loc)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
-        futures = [ex.submit(_enrich_loc_with_place_id, loc, keyword_hint) for loc in targets]
+        futures = [ex.submit(_enrich_loc_with_place_id, loc) for loc in targets]
         for f in concurrent.futures.as_completed(futures):
             try:
                 f.result()
