@@ -88,6 +88,50 @@ def update_activity(activity_id: int, body: dict, conn=Depends(get_db)):
     cur.close()
     return updated
 
+@router.put("/days/{day_id}")
+def update_day(day_id: int, body: dict, conn=Depends(get_db)):
+    """
+    Body can include any of:
+    accommodation_name, accommodation_address, accommodation_notes,
+    preferred_start_time, preferred_end_time
+    """
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM day_trips WHERE id=%s", (day_id,))
+    existing = cur.fetchone()
+    if not existing:
+        cur.close()
+        raise HTTPException(404, "Day trip not found")
+
+    fields = []
+    values = []
+    allowed = [
+        "accommodation_name",
+        "accommodation_address",
+        "accommodation_notes",
+        "preferred_start_time",
+        "preferred_end_time",
+    ]
+
+    for key, val in body.items():
+        if key in allowed:
+            fields.append(f"{key}=%s")
+            values.append(val)
+
+    if not fields:
+        cur.close()
+        raise HTTPException(400, "No valid fields to update")
+
+    values.append(day_id)
+    sql = f"UPDATE day_trips SET {', '.join(fields)} WHERE id=%s"
+    cur.execute(sql, tuple(values))
+    conn.commit()
+
+    cur.execute("SELECT * FROM day_trips WHERE id=%s", (day_id,))
+    updated = cur.fetchone()
+    cur.close()
+    return updated
+
+
 # ---------------- CREATE ----------------
 @router.post("/", status_code=201)
 def create_trip(body: dict, conn=Depends(get_db)):
@@ -111,12 +155,31 @@ def create_trip(body: dict, conn=Depends(get_db)):
 @router.post("/{trip_id}/days", status_code=201)
 def create_day(trip_id: int, body: dict, conn=Depends(get_db)):
     """
-    Body should include: day_number, date
+    Body should include:
+    day_number, date
+    Optional: accommodation_name, accommodation_address, accommodation_notes,
+              preferred_start_time, preferred_end_time
     """
     cur = conn.cursor(dictionary=True)
     cur.execute(
-        "INSERT INTO day_trips (trip_id, day_number, date) VALUES (%s,%s,%s)",
-        (trip_id, body["day_number"], body["date"]),
+        """
+        INSERT INTO day_trips (
+            trip_id, day_number, date,
+            accommodation_name, accommodation_address, accommodation_notes,
+            preferred_start_time, preferred_end_time
+        )
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+        """,
+        (
+            trip_id,
+            body["day_number"],
+            body["date"],
+            body.get("accommodation_name"),
+            body.get("accommodation_address"),
+            body.get("accommodation_notes"),
+            body.get("preferred_start_time"),
+            body.get("preferred_end_time"),
+        ),
     )
     conn.commit()
     day_id = cur.lastrowid
@@ -125,6 +188,7 @@ def create_day(trip_id: int, body: dict, conn=Depends(get_db)):
     day = cur.fetchone()
     cur.close()
     return day
+
 
 
 @router.post("/days/{day_id}/activities", status_code=201)
@@ -191,9 +255,26 @@ def create_full_trip(body: dict, conn=Depends(get_db)):
     try:
         # Insert trip
         cur.execute(
-            "INSERT INTO trips (user_id, name, start_date, end_date) VALUES (%s,%s,%s,%s)",
-            (body["user_id"], body["name"], body["start_date"], body["end_date"]),
+            """
+            INSERT INTO day_trips (
+                trip_id, day_number, date,
+                accommodation_name, accommodation_address, accommodation_notes,
+                preferred_start_time, preferred_end_time
+            )
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+            """,
+                (
+                    trip_id,
+                    d["day_number"],
+                    d["date"],
+                    d.get("accommodation_name"),
+                    d.get("accommodation_address"),
+                    d.get("accommodation_notes"),
+                    d.get("preferred_start_time"),
+                    d.get("preferred_end_time"),
+                ),
         )
+
         trip_id = cur.lastrowid
 
         # Insert days + activities
