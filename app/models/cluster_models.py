@@ -33,7 +33,6 @@ class ClusterIn(BaseModel):
     locations_sorted: List[LocationIn]
     requested_days: Optional[int] = Field(3, description="Number of days requested for trip")
     max_hours_per_day: Optional[int] = Field(12, description="Maximum hours available per day")
-    keyword_hint: Optional[str] = Field(None, description="Optional user-provided hint to bias place_id lookup")
 
     model_config = {
         "json_schema_extra": {

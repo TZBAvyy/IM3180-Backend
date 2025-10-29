@@ -19,6 +19,47 @@ DEFAULT_CATEGORIES: List[str] = [
     "Shopping & Lifestyle",
 ]
 
+NAME_DESCRIPTOR_SUFFIXES: List[str] = [
+    "food tour",
+    "food exploration",
+    "food experience",
+    "food adventure",
+    "food street tour",
+    "food street walk",
+    "food street feast",
+    "street food experience",
+    "street food stroll",
+    "street food feast",
+    "food sampling",
+    "food tasting",
+    "food crawl",
+    "food walk",
+    "food stroll",
+    "food alley walk",
+    "food alley tour",
+    "izakaya hopping tour",
+    "izakaya hopping",
+    "nightlife experience",
+    "nightlife crawl",
+    "bar crawl",
+    "pub crawl",
+    "evening stroll",
+    "evening walk",
+    "jazz pub experience",
+    "shopping tour",
+    "shopping experience",
+    "shopping crawl",
+    "culture walk",
+    "cultural tour",
+    "culture tour",
+    "nature walk",
+    "outdoor experience",
+    "light show",
+    "street tour",
+    "street walk",
+    "tea house visit",
+]
+
 CATEGORY_KEYWORDS = {
     "Food Tour": [
         "restaurants", "cafes", "hawker centres", "street food", "food courts",
@@ -54,51 +95,271 @@ CATEGORY_KEYWORDS = {
 }
 
 CITY_LANGUAGE_HINTS = {
+    # 🇯🇵 Japan
     "Tokyo": "Japanese",
     "Kyoto": "Japanese",
     "Osaka": "Japanese",
     "Yokohama": "Japanese",
     "Nagoya": "Japanese",
+    "Sapporo": "Japanese",
+    "Fukuoka": "Japanese",
+    "Nara": "Japanese",
+    "Hiroshima": "Japanese",
+
+    # 🇸🇬 Singapore
     "Singapore": "English, Mandarin Chinese, Malay, or Tamil",
+
+    # 🇰🇷 South Korea
     "Seoul": "Korean",
     "Busan": "Korean",
+    "Incheon": "Korean",
     "Jeju": "Korean",
+    "Daegu": "Korean",
+
+    # 🇹🇭 Thailand
     "Bangkok": "Thai",
     "Chiang Mai": "Thai",
+    "Phuket": "Thai",
+    "Pattaya": "Thai",
+    "Krabi": "Thai",
+
+    # 🇻🇳 Vietnam
     "Hanoi": "Vietnamese",
     "Ho Chi Minh City": "Vietnamese",
+    "Da Nang": "Vietnamese",
+    "Hoi An": "Vietnamese",
+    "Nha Trang": "Vietnamese",
+
+    # 🇹🇼 Taiwan
     "Taipei": "Traditional Chinese",
     "Taichung": "Traditional Chinese",
+    "Kaohsiung": "Traditional Chinese",
+    "Tainan": "Traditional Chinese",
+
+    # 🇭🇰 Hong Kong / 🇲🇴 Macau
     "Hong Kong": "Traditional Chinese",
+    "Macau": "Traditional Chinese and Portuguese",
+
+    # 🇨🇳 China (Mainland)
     "Shanghai": "Simplified Chinese",
     "Beijing": "Simplified Chinese",
+    "Guangzhou": "Simplified Chinese",
+    "Shenzhen": "Simplified Chinese",
+    "Chengdu": "Simplified Chinese",
+    "Hangzhou": "Simplified Chinese",
+    "Xian": "Simplified Chinese",
+    "Suzhou": "Simplified Chinese",
+
+    # 🇲🇾 Malaysia
     "Kuala Lumpur": "Malay or English",
     "Penang": "Malay or English",
+    "Johor Bahru": "Malay or English",
+    "Langkawi": "Malay or English",
+    "Malacca": "Malay or English",
+
+    # 🇮🇩 Indonesia
     "Jakarta": "Indonesian",
     "Bali": "Indonesian",
+    "Yogyakarta": "Indonesian",
+    "Surabaya": "Indonesian",
+    "Medan": "Indonesian",
+
+    # 🇵🇭 Philippines
     "Manila": "Filipino",
     "Cebu": "Filipino",
+    "Boracay": "Filipino",
+    "Davao": "Filipino",
+
+    # 🇮🇳 India
+    "New Delhi": "Hindi or English",
+    "Mumbai": "Hindi or English",
+    "Bangalore": "Hindi or English",
+    "Chennai": "Tamil or English",
+    "Kolkata": "Hindi or Bengali",
+
+    # 🇪🇺 Europe (popular tourist hubs)
+    "Paris": "French",
+    "London": "English",
+    "Rome": "Italian",
+    "Venice": "Italian",
+    "Barcelona": "Spanish",
+    "Madrid": "Spanish",
+    "Berlin": "German",
+    "Amsterdam": "Dutch",
+    "Prague": "Czech",
+    "Vienna": "German",
+
+    # 🇺🇸 United States
+    "New York": "English",
+    "Los Angeles": "English",
+    "San Francisco": "English",
+    "Las Vegas": "English",
+    "Miami": "English",
+    "Chicago": "English",
+
+    # 🇦🇺 Australia
+    "Sydney": "English",
+    "Melbourne": "English",
+    "Brisbane": "English",
+    "Perth": "English",
+
+    # 🇨🇦 Canada
+    "Toronto": "English",
+    "Vancouver": "English",
+    "Montreal": "English and French",
+
+    # 🇨🇭 Others (for good global coverage)
+    "Dubai": "Arabic and English",
+    "Istanbul": "Turkish",
+    "Doha": "Arabic and English",
+    "Zurich": "German",
+    "Geneva": "French",
 }
 
 CITY_SYNONYMS = {
-    "Penang": ["George Town", "Pulau Pinang", "Penang Island", "Georgetown"],
-    "Singapore": ["SG", "Lion City"],
-    "Tokyo": ["Toukyou", "東京都"],
-    "Kyoto": ["Kyōto", "京都"],
-    "Osaka": ["Ōsaka", "大阪"],
-    "Seoul": ["서울", "Soul"],
-    "Busan": ["부산"],
-    "Bangkok": ["Krung Thep", "กรุงเทพมหานคร"],
-    "Hanoi": ["Hà Nội"],
-    "Ho Chi Minh City": ["Saigon", "Sài Gòn"],
-    "Taipei": ["臺北", "台北"],
-    "Hong Kong": ["香港"],
-    "Shanghai": ["上海"],
-    "Beijing": ["北京市", "北京"],
-    "Jakarta": ["DKI Jakarta"],
-    "Bali": ["Denpasar"],
-    "Manila": ["Metro Manila"],
+    # 🇯🇵 Japan
+    "Tokyo": [
+        "Toukyou", "東京都", "Tokyo City", "Tokyo Metropolis",
+        "Shibuya", "Shinjuku", "Akihabara", "Ueno", "Asakusa"
+    ],
+    "Kyoto": ["Kyōto", "京都", "Kyoto City", "Gion", "Arashiyama", "Fushimi"],
+    "Osaka": ["Ōsaka", "大阪", "Osaka City", "Namba", "Umeda", "Shinsekai"],
+    "Yokohama": ["横浜", "Yokohama City", "Minato Mirai", "Kanagawa"],
+    "Nagoya": ["名古屋", "Nagoya City", "Sakae", "Aichi Prefecture"],
+    "Sapporo": ["札幌", "Hokkaido"],
+    "Fukuoka": ["福岡", "Tenjin", "Hakata"],
+
+    # 🇸🇬 Singapore
+    "Singapore": [
+        "SG", "Lion City", "The Little Red Dot", "SGP",
+        "Marina Bay", "Orchard", "Chinatown", "Sentosa", "Bugis", "Clarke Quay"
+    ],
+
+    # 🇰🇷 South Korea
+    "Seoul": ["서울", "Soul", "Seoul City", "Gangnam", "Myeongdong", "Hongdae", "Itaewon"],
+    "Busan": ["부산", "Busan City", "Haeundae", "Nampo-dong"],
+    "Incheon": ["仁川", "Incheon City", "Songdo"],
+    "Jeju": ["제주", "Jeju Island", "Jeju-si", "Seogwipo"],
+    "Daegu": ["대구", "Daegu City"],
+
+    # 🇹🇭 Thailand
+    "Bangkok": ["Krung Thep", "กรุงเทพมหานคร", "Bangkok City", "Siam", "Silom", "Sukhumvit"],
+    "Chiang Mai": ["เชียงใหม่", "Old City", "Nimman"],
+    "Phuket": ["ภูเก็ต", "Patong", "Kata", "Karon"],
+    "Pattaya": ["พัทยา"],
+    "Krabi": ["กระบี่", "Ao Nang"],
+
+    # 🇻🇳 Vietnam
+    "Hanoi": ["Hà Nội", "Old Quarter", "Ba Dinh"],
+    "Ho Chi Minh City": ["Saigon", "Sài Gòn", "District 1", "D1", "D3", "Phu Nhuan", "HCMC"],
+    "Da Nang": ["Đà Nẵng", "Son Tra", "My Khe Beach"],
+    "Hoi An": ["Hội An"],
+    "Nha Trang": ["Nha Trang City"],
+
+    # 🇹🇼 Taiwan
+    "Taipei": ["臺北", "台北", "Xinyi", "Zhongzheng", "Shilin", "Taipei City"],
+    "Taichung": ["台中", "Fengjia", "Xitun"],
+    "Kaohsiung": ["高雄", "Zuoying", "Kaohsiung City"],
+    "Tainan": ["台南", "Anping"],
+
+    # 🇭🇰 Hong Kong / 🇲🇴 Macau
+    "Hong Kong": [
+        "香港", "HK", "Kowloon", "Tsim Sha Tsui", "Mong Kok", "Central", "Causeway Bay"
+    ],
+    "Macau": ["澳門", "Macao", "Cotai", "Taipa"],
+
+    # 🇨🇳 China Mainland
+    "Shanghai": [
+        "上海", "Shanghai City", "Pudong", "The Bund", "Huangpu", "Xuhui"
+    ],
+    "Beijing": [
+        "北京市", "北京", "Beijing City", "Chaoyang", "Haidian", "Dongcheng", "Tiananmen"
+    ],
+    "Shenzhen": [
+        "深圳", "Shenzhen Shi", "Shenzhen City", "Nanshan", "Futian", "Luohu", "Bao'an", "Guangdong"
+    ],
+    "Guangzhou": [
+        "广州", "Guangzhou City", "Tianhe", "Yuexiu", "Panyu", "Guangdong"
+    ],
+    "Chengdu": [
+        "成都", "Chengdu City", "Jinjiang", "Wuhou", "Sichuan"
+    ],
+    "Hangzhou": [
+        "杭州", "Hangzhou City", "Xihu", "Zhejiang"
+    ],
+    "Xian": ["Xi’an", "西安", "Shaanxi"],
+    "Suzhou": ["苏州", "Suzhou City", "Jiangsu"],
+
+    # 🇲🇾 Malaysia
+    "Kuala Lumpur": [
+        "KL", "K.L.", "Kuala Lumpur City", "Bukit Bintang", "Petaling Jaya", "Selangor"
+    ],
+    "Penang": [
+        "George Town", "Pulau Pinang", "Penang Island", "Georgetown", "Bayan Lepas"
+    ],
+    "Johor Bahru": ["JB", "Johor City", "Skudai", "Tebrau"],
+    "Langkawi": ["Pulau Langkawi", "Kedah"],
+    "Malacca": ["Melaka", "Ayer Keroh"],
+
+    # 🇮🇩 Indonesia
+    "Jakarta": [
+        "DKI Jakarta", "Jakarta City", "Central Jakarta", "South Jakarta", "Menteng", "Kuningan"
+    ],
+    "Bali": [
+        "Denpasar", "Kuta", "Seminyak", "Ubud", "Canggu", "Gianyar"
+    ],
+    "Yogyakarta": ["Jogja", "Yogyakarta City"],
+    "Surabaya": ["Surabaya City", "East Java"],
+    "Medan": ["Medan City"],
+
+    # 🇵🇭 Philippines
+    "Manila": [
+        "Metro Manila", "Makati", "Quezon City", "Pasig", "BGC", "Taguig"
+    ],
+    "Cebu": ["Cebu City", "Mactan", "Lapu-Lapu"],
+    "Boracay": ["Malay Aklan", "White Beach"],
+    "Davao": ["Davao City"],
+
+    # 🇮🇳 India
+    "New Delhi": ["Delhi", "NCR", "Connaught Place", "South Delhi"],
+    "Mumbai": ["Bombay", "Andheri", "Bandra", "Colaba"],
+    "Bangalore": ["Bengaluru", "Koramangala", "Indiranagar"],
+    "Chennai": ["Madras", "T Nagar", "Anna Nagar"],
+    "Kolkata": ["Calcutta", "Howrah"],
+
+    # 🇦🇺 Australia
+    "Sydney": ["SYD", "CBD", "Parramatta", "Bondi"],
+    "Melbourne": ["MEL", "Docklands", "St Kilda", "Fitzroy"],
+    "Brisbane": ["QLD", "South Bank"],
+    "Perth": ["WA", "Fremantle"],
+
+    # 🇺🇸 United States
+    "New York": ["NYC", "New York City", "Manhattan", "Brooklyn", "Queens"],
+    "Los Angeles": ["LA", "L.A.", "Hollywood", "Santa Monica"],
+    "San Francisco": ["SF", "Frisco", "Bay Area"],
+    "Las Vegas": ["Vegas", "The Strip"],
+    "Miami": ["South Beach"],
+    "Chicago": ["Chi-Town", "Downtown Chicago"],
+
+    # 🇪🇺 Europe
+    "Paris": ["Île-de-France", "Montmartre", "Champs-Élysées"],
+    "London": ["LON", "City of London", "Camden", "Westminster"],
+    "Rome": ["Roma", "Vatican City", "Trastevere"],
+    "Venice": ["Venezia", "Murano", "Burano"],
+    "Barcelona": ["Barça", "Catalonia", "Eixample"],
+    "Madrid": ["Madriz", "Gran Via"],
+    "Berlin": ["Berliner", "Mitte", "Kreuzberg"],
+    "Amsterdam": ["AMS", "De Wallen", "Zuid"],
+    "Prague": ["Praha", "Old Town"],
+    "Vienna": ["Wien"],
+
+    # 🇦🇪 Middle East
+    "Dubai": ["دبي", "Downtown Dubai", "Marina", "Deira"],
+    "Doha": ["الدوحة", "West Bay", "Corniche"],
+    "Istanbul": ["İstanbul", "Constantinople", "Sultanahmet", "Taksim"],
 }
+
+
 
 # --- API Key Rotation (Gemini) ---
 API_KEYS = [
@@ -131,6 +392,64 @@ def normalize_location_key(name: Optional[str], city: Optional[str], address: Op
 
     parts = [clean(name), clean(city), clean(address)]
     return "|".join(parts)
+
+
+def clean_activity_name(raw_name: Optional[str], category: Optional[str] = None) -> str:
+    if not isinstance(raw_name, str):
+        return ""
+    name = re.sub(r"\s+", " ", raw_name).strip()
+    if not name:
+        return ""
+    # Strip trailing parenthetical notes
+    while True:
+        stripped = re.sub(r"\s*\([^()]*\)\s*$", "", name).strip()
+        if stripped == name or not stripped:
+            break
+        name = stripped
+    lowered = name.lower()
+    for phrase in NAME_DESCRIPTOR_SUFFIXES:
+        if lowered.endswith(phrase):
+            pattern = r"[\s\-–—,:/&]*" + re.escape(phrase) + r"$"
+            candidate = re.sub(pattern, "", name, flags=re.IGNORECASE).strip()
+            if candidate:
+                name = candidate
+                lowered = name.lower()
+    # If category name leaks into suffix, trim it
+    if isinstance(category, str):
+        cat_clean = re.sub(r"[^a-zA-Z\s&]", " ", category).strip().lower()
+        if cat_clean and lowered.endswith(cat_clean):
+            pattern = r"[\s\-–—,:/&]*" + re.escape(cat_clean) + r"$"
+            candidate = re.sub(pattern, "", name, flags=re.IGNORECASE).strip()
+            if candidate:
+                name = candidate
+                lowered = name.lower()
+    name = name.strip(" -–—,:/&")
+    return name or raw_name.strip()
+
+
+def sanitize_address(address: Optional[str], city_hint: Optional[str] = None) -> str:
+    """
+    Clean noisy LLM address strings and ensure they reference the canonical city.
+    """
+    if not isinstance(address, str):
+        address_str = ""
+    else:
+        address_str = address.strip()
+    if not address_str:
+        address_str = ""
+    address_str = re.split(r"\bNote:\b", address_str, maxsplit=1)[0]
+    address_str = re.sub(r"\s*\([^)]*\bNote\b[^)]*\)", "", address_str, flags=re.IGNORECASE)
+    address_str = re.split(r"\bReplaced\b", address_str, maxsplit=1)[0]
+    address_str = re.sub(r"\s+", " ", address_str)
+    address_str = address_str.strip(" ,;")
+    if city_hint:
+        city_clean = city_hint.strip()
+        if city_clean and city_clean.lower() not in address_str.lower():
+            address_str = f"{address_str}, {city_clean}" if address_str else city_clean
+    return address_str
+
+
+
 
 
 # --- Unsplash API (Free Photos) ---
@@ -483,8 +802,10 @@ def generate_itinerary(
     Guidance:
     - {compact_keyword_hint}
     - {compact_language_hint}
+    - Do not include latitude, longitude, place_id, coordinates, or map links in the JSON.
+    - Use only the official venue name (no extra descriptors such as "Food Tour", "Experience", or similar).
     - Allowed categories only: {allowed_cats_text}
-    - Each item requires name, address, city (exactly one of the listed cities).
+    - Each item requires name, address, and a city or district label that lies within the allowed cities (we will normalize labels).
 
     JSON schema (no markdown or commentary):
     {{
@@ -527,10 +848,14 @@ def generate_itinerary(
     - Keep generating unique, non-duplicate locations until all category and city counts are satisfied.
     - Avoid generic tourist cliches unless they directly match preferences.
     - Spread activities across different areas to reduce repetition.
+    - Never include latitude, longitude, place_id, coordinates, or map links in the JSON output.
+    - Use the official, real-world venue name only (omit descriptors like "Food Tour", "Experience", "Walk", etc.).
+    - City/district labels can use native-language names or sub-city districts as long as the address is inside the requested city; we normalize them internally.
+    - Provide full street addresses with numbers, districts, city, and postal/zip codes; avoid generic area-only descriptions.
     - Every location MUST include:
       - name
       - real address
-      - city (must exactly match one of: {cities_inline})
+      - city or district label that clearly sits within one of: {cities_inline}
     - Do NOT return "N/A", "Address not available", or empty values.
 
     Output format:
@@ -585,7 +910,13 @@ def generate_itinerary(
                 continue
             for activity in activities:
                 try:
-                    name = activity.get("name") or "Unknown"
+                    if not isinstance(activity, dict):
+                        continue
+                    for forbidden_field in ("latitude", "longitude", "place_id", "lat", "lng", "coordinates", "map_url", "map_link"):
+                        activity.pop(forbidden_field, None)
+                    raw_name = activity.get("name") or "Unknown"
+                    name = clean_activity_name(raw_name, cat) or raw_name
+                    activity["name"] = name
                     address_value = activity.get("address", "Address not available")
                     addr = address_value if isinstance(address_value, str) else str(address_value)
                     raw_city = activity.get("city")
@@ -600,6 +931,8 @@ def generate_itinerary(
                                 break
                     if not city_name:
                         city_name = cleaned_cities[0]
+                    addr = sanitize_address(addr, city_name)
+                    activity["address"] = addr
                     if city_name not in category_city_remaining:
                         continue
                     if category_remaining.get(cat, 0) <= 0:
@@ -614,19 +947,18 @@ def generate_itinerary(
                     if forbidden_keys and key in forbidden_keys:
                         continue
 
-                    categories_output[cat].append(
-                        {
-                            "name": name,
-                            "address": addr,
-                            "city": city_name,
-                            "category": cat,
-                            "photo_url": None,
-                            "photo_pending": False,
-                            "latitude": None,
-                            "longitude": None,
-                            "place_id": None,
-                        }
-                    )
+                    clean_activity = {
+                        "name": name,
+                        "address": addr,
+                        "city": city_name,
+                        "category": cat,
+                        "photo_url": None,
+                        "photo_pending": False,
+                        "latitude": None,
+                        "longitude": None,
+                        "place_id": None,
+                    }
+                    categories_output[cat].append(clean_activity)
                     attempt_seen_keys.add(key)
                     category_remaining[cat] -= 1
                     city_remaining[city_name] -= 1
@@ -651,10 +983,11 @@ def generate_itinerary(
 
         return categories_output, category_remaining, city_remaining, category_city_remaining
 
-    max_attempts = 3
+    max_attempts = 5
     retry_guidance = ""
     accumulated_output: Dict[str, List[Dict[str, Any]]] = {cat: [] for cat in allowed_categories}
     seen_location_keys: Set[str] = set()
+    seen_place_ids: Set[str] = set()
     geocode_cache: Dict[str, Optional[Dict[str, Any]]] = {}
 
     category_remaining, city_remaining, category_city_remaining = compute_remaining_state(accumulated_output)
@@ -670,6 +1003,10 @@ def generate_itinerary(
         )
         output, _, _, _ = run_single_attempt(prompt, attempt, seen_location_keys)
 
+        prepared_entries: List[Dict[str, Any]] = []
+        pending_geocode_jobs: List[tuple[str, str, str]] = []
+        pending_keys: Set[str] = set()
+
         for cat, activities in output.items():
             if cat not in accumulated_output:
                 continue
@@ -684,52 +1021,97 @@ def generate_itinerary(
                 if category_remaining.get(cat, 0) <= 0:
                     continue
                 addr = address_value if isinstance(address_value, str) else str(address_value)
-                canonical_guess = allowed_city_lookup.get(city_value.strip().lower(), city_value.strip())
+                canonical_guess = allowed_city_lookup.get(
+                    city_value.strip().lower(),
+                    city_value.strip(),
+                )
+                addr = sanitize_address(addr, canonical_guess)
+                activity["address"] = addr
                 initial_key = normalize_location_key(name, canonical_guess, addr)
                 if initial_key in seen_location_keys:
                     continue
 
-                if initial_key in geocode_cache:
-                    geo = geocode_cache[initial_key]
-                else:
-                    geo = resolve_latlng_from_address(
+                prepared_entries.append(
+                    {
+                        "cat": cat,
+                        "activity": activity,
+                        "name": name,
+                        "addr": addr,
+                        "initial_key": initial_key,
+                        "canonical_guess": canonical_guess,
+                    }
+                )
+
+                if initial_key not in geocode_cache and initial_key not in pending_keys:
+                    pending_keys.add(initial_key)
+                    pending_geocode_jobs.append((initial_key, addr, canonical_guess))
+
+        if pending_geocode_jobs:
+            max_workers = min(8, len(pending_geocode_jobs))
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_key = {
+                    executor.submit(
+                        resolve_latlng_from_address,
                         addr,
                         canonical_guess,
                         allowed_city_variants,
                         allowed_city_lookup,
-                    )
-                    geocode_cache[initial_key] = geo
+                    ): initial_key
+                    for initial_key, addr, canonical_guess in pending_geocode_jobs
+                }
+                for future in concurrent.futures.as_completed(future_to_key):
+                    key = future_to_key[future]
+                    try:
+                        geocode_cache[key] = future.result()
+                    except Exception as exc:
+                        print(f"[Geocoding] Error resolving {key}: {exc}")
+                        geocode_cache[key] = None
 
-                if not (geo and geo.get("matched_city_ok")):
-                    continue
-                final_city = canonical_guess
-                if geo.get("matched_city"):
-                    matched_canonical = allowed_city_lookup.get(
-                        geo["matched_city"].lower(),
-                        final_city,
-                    )
-                    if matched_canonical:
-                        final_city = matched_canonical
-                final_key = normalize_location_key(name, final_city, addr)
-                if final_key != initial_key:
-                    geocode_cache[final_key] = geo
-                if final_key in seen_location_keys:
-                    continue
-                if final_city not in city_remaining:
-                    continue
-                if city_remaining.get(final_city, 0) <= 0:
-                    continue
-                if category_city_remaining[final_city].get(cat, 0) <= 0:
-                    continue
-                activity["city"] = final_city
-                activity["latitude"] = geo["latitude"]
-                activity["longitude"] = geo["longitude"]
-                activity["place_id"] = geo.get("place_id")
-                accumulated_output[cat].append(activity)
-                seen_location_keys.add(final_key)
-                category_remaining[cat] -= 1
-                city_remaining[final_city] -= 1
-                category_city_remaining[final_city][cat] -= 1
+        for entry in prepared_entries:
+            cat = entry["cat"]
+            activity = entry["activity"]
+            name = entry["name"]
+            addr = entry["addr"]
+            initial_key = entry["initial_key"]
+            canonical_guess = entry["canonical_guess"]
+
+            geo = geocode_cache.get(initial_key)
+            if not (geo and geo.get("matched_city_ok")):
+                continue
+
+            final_city = canonical_guess
+            matched_city = geo.get("matched_city")
+            if isinstance(matched_city, str):
+                matched_canonical = allowed_city_lookup.get(matched_city.strip().lower())
+                if matched_canonical:
+                    final_city = matched_canonical
+            final_key = normalize_location_key(name, final_city, addr)
+            if final_key != initial_key:
+                geocode_cache[final_key] = geo
+            if final_key in seen_location_keys:
+                continue
+            if final_city not in city_remaining:
+                continue
+            if city_remaining.get(final_city, 0) <= 0:
+                continue
+            if category_remaining.get(cat, 0) <= 0:
+                continue
+            if category_city_remaining[final_city].get(cat, 0) <= 0:
+                continue
+            pid = geo.get("place_id")
+            if isinstance(pid, str) and pid in seen_place_ids:
+                continue
+            activity["city"] = final_city
+            activity["latitude"] = geo.get("latitude")
+            activity["longitude"] = geo.get("longitude")
+            activity["place_id"] = pid
+            accumulated_output[cat].append(activity)
+            seen_location_keys.add(final_key)
+            if isinstance(pid, str):
+                seen_place_ids.add(pid)
+            category_remaining[cat] -= 1
+            city_remaining[final_city] -= 1
+            category_city_remaining[final_city][cat] -= 1
 
         category_remaining, city_remaining, category_city_remaining = compute_remaining_state(accumulated_output)
         if sum(category_remaining.values()) == 0:
@@ -776,10 +1158,8 @@ def generate_itinerary(
     return accumulated_output
 
 
-
-
 # --- Gemini utilities ---
-def call_gemini_once(prompt: str, model: str = "gemini-2.5-flash", timeout: int = 50):
+def call_gemini_once(prompt: str, model: str = "gemini-2.5-flash-lite", timeout: int = 50):
     client = get_next_client()
 
     def _generate():
@@ -823,28 +1203,81 @@ def call_gemini_once(prompt: str, model: str = "gemini-2.5-flash", timeout: int 
 def safe_parse_llm_output(llm_text: str):
     if not isinstance(llm_text, str):
         llm_text = str(llm_text)
-    try:
-        return json.loads(llm_text)
-    except Exception:
-        pass
-    # fallback cleaning...
-    first_obj_idx = llm_text.find("{")
-    first_arr_idx = llm_text.find("[")
-    candidates = []
-    if first_arr_idx != -1:
-        last_arr_idx = llm_text.rfind("]")
-        if last_arr_idx != -1 and last_arr_idx > first_arr_idx:
-            candidates.append(llm_text[first_arr_idx : last_arr_idx + 1])
-    if first_obj_idx != -1:
-        last_obj_idx = llm_text.rfind("}")
-        if last_obj_idx != -1 and last_obj_idx > first_obj_idx:
-            candidates.append(llm_text[first_obj_idx : last_obj_idx + 1])
-    for candidate in candidates:
-        for attempt in (candidate, re.sub(r",\s*([}\]])", r"\1", candidate)):
+    text = llm_text.strip()
+
+    def _remove_code_fences(src: str) -> str:
+        if "```" not in src:
+            return src
+        matches = re.findall(r"```(?:json|JSON)?\s*(.*?)```", src, flags=re.DOTALL)
+        if matches:
+            return matches[0].strip()
+        return src.replace("```", "")
+
+    def _extract_json_candidates(src: str) -> List[str]:
+        candidates = []
+
+        def _scan(open_char: str, close_char: str):
+            stack = 0
+            start = None
+            in_string = False
+            escape = False
+            for idx, ch in enumerate(src):
+                if escape:
+                    escape = False
+                    continue
+                if ch == "\\":
+                    escape = True
+                    continue
+                if ch == '"':
+                    in_string = not in_string
+                    continue
+                if in_string:
+                    continue
+                if ch == open_char:
+                    if stack == 0:
+                        start = idx
+                    stack += 1
+                elif ch == close_char and stack > 0:
+                    stack -= 1
+                    if stack == 0 and start is not None:
+                        candidates.append(src[start : idx + 1])
+
+        _scan("{", "}")
+        _scan("[", "]")
+        return candidates
+
+    def _try_parse(src: str) -> Any:
+        for candidate in (src, re.sub(r",\s*([}\]])", r"\1", src)):
             try:
-                return json.loads(attempt)
+                return json.loads(candidate)
             except Exception:
                 continue
+        return None
+
+    cleaned = _remove_code_fences(text)
+    direct = _try_parse(cleaned)
+    if direct is not None:
+        return direct
+
+    # Remove any leading text before first brace
+    brace_idx = cleaned.find("{")
+    bracket_idx = cleaned.find("[")
+    earliest = min(
+        [idx for idx in (brace_idx, bracket_idx) if idx != -1],
+        default=-1,
+    )
+    if earliest > 0:
+        cleaned = cleaned[earliest:]
+        direct = _try_parse(cleaned)
+        if direct is not None:
+            return direct
+
+    # Exhaustive search for balanced objects/arrays
+    for fragment in _extract_json_candidates(cleaned):
+        parsed = _try_parse(fragment.strip())
+        if parsed is not None:
+            return parsed
+
     raise ValueError("Could not parse JSON from LLM output")
 
 def resolve_latlng_from_address(
@@ -857,7 +1290,7 @@ def resolve_latlng_from_address(
     """
     Resolve an address string into latitude/longitude using Google Geocoding API.
     """
-    GOOGLE_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
+    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
     if not GOOGLE_API_KEY or not address:
         return None
     query_parts = [address]

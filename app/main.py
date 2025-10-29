@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from app.routes import trip_optimizer, cluster, gemini, auth, trips_crud
+from app.routes import trip_optimizer, cluster, multicluster, gemini, auth, trips_crud
 
 # --- FastAPI main app code---
 
@@ -18,6 +18,7 @@ app.add_middleware(
 
 app.include_router(trip_optimizer.router)
 app.include_router(cluster.router)
+app.include_router(multicluster.router)
 app.include_router(gemini.router)
 app.include_router(auth.router)
 app.include_router(trips_crud.router)
