@@ -258,3 +258,55 @@ def identify_eateries(places: list[str]) -> list[list[str],list[int]]:
                 break
 
     return [place_names, eatery_indexes]
+
+#_____EATERIES<2_____
+def add_eateries(addresses, eateries, min_eateries=2, radius=1000):
+    """
+    If there are fewer than min_eateries, use Google Places Nearby Search to find and add eateries.
+    Returns updated addresses and eateries index list.
+    """
+    if len(eateries) >= min_eateries:
+        return addresses, eateries
+
+    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "change-this")
+    # Get lat/lng for the first address (or any central address)
+    place_id = addresses[0]
+    details_url = f"https://places.googleapis.com/v1/places/{place_id}"
+    headers = {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': GOOGLE_API_KEY,
+        'X-Goog-FieldMask': 'location'
+    }
+    resp = requests.get(details_url, headers=headers)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=500, detail="Failed to get location for Nearby Search")
+    loc = resp.json()['location']
+    lat, lng = loc['latitude'], loc['longitude']
+
+    # Search for eateries nearby
+    search_url = "https://places.googleapis.com/v1/places:searchNearby"
+    search_body = {
+        "location": {"latitude": lat, "longitude": lng},
+        "radius": radius,
+        "types": ["restaurant", "cafe", "food_court"],
+        "maxResultCount": min_eateries - len(eateries)
+    }
+    search_headers = {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': GOOGLE_API_KEY,
+    }
+    search_resp = requests.post(search_url, headers=search_headers, json=search_body)
+    if search_resp.status_code != 200:
+        raise HTTPException(status_code=500, detail="Nearby Search API error")
+    results = search_resp.json().get('places', [])
+
+    # Add new eateries to addresses and eateries list
+    for place in results:
+        new_place_id = place['id']
+        if new_place_id not in addresses:
+            addresses.append(new_place_id)
+            eateries.append(len(addresses) - 1)
+        if len(eateries) >= min_eateries:
+            break
+
+    return addresses, eateries
