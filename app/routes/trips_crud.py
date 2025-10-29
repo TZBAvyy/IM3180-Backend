@@ -4,6 +4,19 @@ from app.db.mysql_pool import get_db
 router = APIRouter(prefix="/trips", tags=["trips"])
 
 # ---------------- READ ----------------
+
+@router.get("/list/recommended")
+def get_recommended_trips(conn=Depends(get_db)):
+    """
+    Returns all trips that have a thumbnail_url (i.e., those with images)
+    """
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM trips WHERE thumbnail_url IS NOT NULL AND thumbnail_url != '' ORDER BY created_at DESC")
+    trips = cur.fetchall()
+    cur.close()
+    return trips
+
+
 @router.get("/{trip_id}")
 def read_trip(trip_id: int, conn=Depends(get_db)):
     cur = conn.cursor(dictionary=True)
@@ -56,16 +69,6 @@ def read_user_trips(user_id: int, conn=Depends(get_db)):
     cur.close()
     return userTrips
 
-@router.get("/list/recommended")
-def get_recommended_trips(conn=Depends(get_db)):
-    """
-    Returns all trips that have a thumbnail_url (i.e., those with images)
-    """
-    cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT * FROM trips WHERE thumbnail_url IS NOT NULL AND thumbnail_url != '' ORDER BY created_at DESC")
-    trips = cur.fetchall()
-    cur.close()
-    return trips
 
 # ---------------- UPDATE ----------------
 @router.put("/activities/{activity_id}")
