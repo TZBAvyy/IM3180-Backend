@@ -39,24 +39,35 @@ def get_optimized_route(request: TripOptiIn):
     dinner_end_hour = request.dinner_end_hour
 
     # --- Input validation ---
+    n = len(addresses)
     if addresses is None or hotel_index is None or service_times is None:
         raise HTTPException(status_code=400, detail="Missing required fields")
-    if len(addresses) != len(service_times):
+    if n != len(service_times):
         raise HTTPException(status_code=422, detail="Length of addresses and service_times must match")
-    if len(addresses) < 1:
+    if n < 1:
         raise HTTPException(status_code=422, detail="At least one address is required")
     if service_times[hotel_index] != 0:
         raise HTTPException(status_code=422, detail="Service time at hotel must be zero")
 
-    # --- Google API call for Time Matrix---
+    # --- Google API call for Time Matrix ---
     try:
         time_matrix = get_time_matrix(addresses)
-        [place_names, eateries] = identify_eateries(addresses)
+        eateries = identify_eateries(addresses)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Google Maps Routes API error: {e}")
-    if len(eateries) < 2:
-        # TODO: Change to add eatery locations if less than 2
-        raise HTTPException(status_code=422, detail="At least two eateries (restaurant, cafe, food court, etc.) are required among the addresses")
+
+    # --- Insert Free Spot for Food ---
+    TIME_TAKEN_TO_FREE_SPOT = 15 #min
+    TIME_TAKEN_AT_FREE_SPOT = 60 #min
+    while len(eateries) < 2:
+        # raise HTTPException(status_code=422, detail="At least two eateries (restaurant, cafe, food court, etc.) are required among the addresses")
+        eateries.append(n)
+        addresses.append("Food")
+        for _row in range(n):
+            time_matrix[_row].append(TIME_TAKEN_TO_FREE_SPOT)
+        time_matrix.append([TIME_TAKEN_TO_FREE_SPOT for _ in range(n)]+[0])
+        service_times.append(TIME_TAKEN_AT_FREE_SPOT)
+        n = n+1
 
     # --- Prepare data for trip optimizer ---
     data = {}
@@ -113,6 +124,12 @@ def trip_optimizer(data: dict, lunch_index: int = 0, dinner_index: int = 1, flip
         name='Time')
     time_dimension = routing.GetDimensionOrDie('Time')
 
+    # --- Penalties: Allow to drop nodes ---
+    penalty = 1000
+    for node in range(1, len(data["time_matrix"])):
+        if node not in data['eatery_nodes']:
+            routing.AddDisjunction([manager.NodeToIndex(node)], penalty)
+
     # --- Lunch spot constraint ---
     lunch_index_node = manager.NodeToIndex(data['lunch_node'])
     time_dimension.CumulVar(lunch_index_node).SetRange(
@@ -137,18 +154,23 @@ def trip_optimizer(data: dict, lunch_index: int = 0, dinner_index: int = 1, flip
         route = _format_solution(routing, manager, time_dimension, solution, data)
         return route
     else:
+        # If cannot find solution, flip lunch & dinner places first
         if not flip:
             return trip_optimizer(data=data, lunch_index=dinner_index, dinner_index=lunch_index, flip=True)
         else:
+            # Revert back to normal if flipping doesn't work
             lunch_index, dinner_index = dinner_index, lunch_index
 
+        # Set dinner node to next element in 'eatery_nodes' if exists
         if dinner_index + 1 < len(data['eatery_nodes']):
             return trip_optimizer(data=data, lunch_index=lunch_index, dinner_index=dinner_index + 1, flip=False)
 
+        # Set lunch node next if still no solution
         elif lunch_index + 1 < len(data['eatery_nodes']) - 1:
             return trip_optimizer(data=data, lunch_index=lunch_index + 1, dinner_index=lunch_index + 2, flip=False)
         else:
             print("No solution found!")
+            print(data)
             raise HTTPException(status_code=404, detail="No solution found")
 
 
@@ -227,14 +249,13 @@ def get_time_matrix(places: list[str]) -> list[list]:
     return time_matrix
 
 
-def identify_eateries(places: list[str]) -> list[list[str],list[int]]:
+def identify_eateries(places: list[str]) -> list[int]:
     """
     Identify eateries (restaurant, cafe, food, etc.) among coords using Google Places Nearby Search API.
     Returns list of indexes corresponding to eatery coordinates.
     """
     EATERY_TYPES = ["restaurant", "diner", "food_court"]
     eatery_indexes = []
-    place_names = []
 
     N = len(places)
 
@@ -243,70 +264,16 @@ def identify_eateries(places: list[str]) -> list[list[str],list[int]]:
         headers = {
             'Content-Type': 'application/json',
             'X-Goog-Api-Key': GOOGLE_API_KEY,
-            'X-Goog-FieldMask': 'id,displayName,types'
+            'X-Goog-FieldMask': 'id,types'
         }
         response = requests.get(url=url,headers=headers)
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code,detail=response.text)
         data = response.json()
 
-        place_names.append(data['displayName']['text'])
-
         for place_type in data['types']:
             if place_type in EATERY_TYPES:
                 eatery_indexes.append(i)
                 break
 
-    return [place_names, eatery_indexes]
-
-#_____EATERIES<2_____
-def add_eateries(addresses, eateries, min_eateries=2, radius=1000):
-    """
-    If there are fewer than min_eateries, use Google Places Nearby Search to find and add eateries.
-    Returns updated addresses and eateries index list.
-    """
-    if len(eateries) >= min_eateries:
-        return addresses, eateries
-
-    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "change-this")
-    # Get lat/lng for the first address (or any central address)
-    place_id = addresses[0]
-    details_url = f"https://places.googleapis.com/v1/places/{place_id}"
-    headers = {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': GOOGLE_API_KEY,
-        'X-Goog-FieldMask': 'location'
-    }
-    resp = requests.get(details_url, headers=headers)
-    if resp.status_code != 200:
-        raise HTTPException(status_code=500, detail="Failed to get location for Nearby Search")
-    loc = resp.json()['location']
-    lat, lng = loc['latitude'], loc['longitude']
-
-    # Search for eateries nearby
-    search_url = "https://places.googleapis.com/v1/places:searchNearby"
-    search_body = {
-        "location": {"latitude": lat, "longitude": lng},
-        "radius": radius,
-        "types": ["restaurant", "cafe", "food_court"],
-        "maxResultCount": min_eateries - len(eateries)
-    }
-    search_headers = {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': GOOGLE_API_KEY,
-    }
-    search_resp = requests.post(search_url, headers=search_headers, json=search_body)
-    if search_resp.status_code != 200:
-        raise HTTPException(status_code=500, detail="Nearby Search API error")
-    results = search_resp.json().get('places', [])
-
-    # Add new eateries to addresses and eateries list
-    for place in results:
-        new_place_id = place['id']
-        if new_place_id not in addresses:
-            addresses.append(new_place_id)
-            eateries.append(len(addresses) - 1)
-        if len(eateries) >= min_eateries:
-            break
-
-    return addresses, eateries
+    return eatery_indexes

@@ -14,7 +14,7 @@ Repository for Backend API of the Trip Optimizer Web Application
 <pre><b>(.venv)</b> C:\...</pre>
 6. Run below in the console
 ```
-fastapi dev app/main.py
+fastapi dev
 ``` 
 
 ### CLI Method
@@ -40,7 +40,7 @@ pip install -r requirements.txt
 
 4. Run below in the console
 ```
-fastapi dev app/main.py
+fastapi dev
 ``` 
 
 
