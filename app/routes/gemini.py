@@ -1290,7 +1290,7 @@ def resolve_latlng_from_address(
     """
     Resolve an address string into latitude/longitude using Google Geocoding API.
     """
-    GOOGLE_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
+    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
     if not GOOGLE_API_KEY or not address:
         return None
     query_parts = [address]

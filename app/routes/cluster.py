@@ -18,7 +18,7 @@ from app.models.error_models import HTTPError
 
 # --- Cluster Route ---
 
-GOOGLE_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 router = APIRouter(prefix="/cluster", tags=["cluster"])
 
