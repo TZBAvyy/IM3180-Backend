@@ -56,6 +56,17 @@ def read_user_trips(user_id: int, conn=Depends(get_db)):
     cur.close()
     return userTrips
 
+@router.get("/recommended")
+def get_recommended_trips(conn=Depends(get_db)):
+    """
+    Returns all trips that have a thumbnail_url (i.e., those with images)
+    """
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM trips WHERE thumbnail_url IS NOT NULL AND thumbnail_url != '' ORDER BY created_at DESC")
+    trips = cur.fetchall()
+    cur.close()
+    return trips
+
 # ---------------- UPDATE ----------------
 @router.put("/activities/{activity_id}")
 def update_activity(activity_id: int, body: dict, conn=Depends(get_db)):
