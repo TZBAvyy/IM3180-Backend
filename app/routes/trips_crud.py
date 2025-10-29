@@ -4,6 +4,19 @@ from app.db.mysql_pool import get_db
 router = APIRouter(prefix="/trips", tags=["trips"])
 
 # ---------------- READ ----------------
+
+@router.get("/list/recommended")
+def get_recommended_trips(conn=Depends(get_db)):
+    """
+    Returns all trips that have a thumbnail_url (i.e., those with images)
+    """
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM trips WHERE thumbnail_url IS NOT NULL AND thumbnail_url != '' ORDER BY created_at DESC")
+    trips = cur.fetchall()
+    cur.close()
+    return trips
+
+
 @router.get("/{trip_id}")
 def read_trip(trip_id: int, conn=Depends(get_db)):
     cur = conn.cursor(dictionary=True)
@@ -55,6 +68,7 @@ def read_user_trips(user_id: int, conn=Depends(get_db)):
 
     cur.close()
     return userTrips
+
 
 # ---------------- UPDATE ----------------
 @router.put("/activities/{activity_id}")
@@ -233,7 +247,7 @@ def create_full_trip(body: dict, conn=Depends(get_db)):
         raise HTTPException(400, f"Failed to create trip: {e}")
 
 # ---------------- DELETE ----------------
-@router.delete("/activities/{activity_id}", status_code=204)
+@router.delete("/del/activities/{activity_id}", status_code=204)
 def delete_activity(activity_id: int, conn=Depends(get_db)):
     cur = conn.cursor(dictionary=True)
     
@@ -251,7 +265,7 @@ def delete_activity(activity_id: int, conn=Depends(get_db)):
     
     return None  # 204 No Content
 
-@router.delete("/days/{day_id}", status_code=204)
+@router.delete("/del/days/{day_id}", status_code=204)
 def delete_day(day_id: int, conn=Depends(get_db)):
     cur = conn.cursor(dictionary=True)
     
@@ -278,7 +292,7 @@ def delete_day(day_id: int, conn=Depends(get_db)):
         cur.close()
         raise HTTPException(400, f"Failed to delete day trip: {e}")
     
-@router.delete("/{trip_id}", status_code=204)
+@router.delete("/del/{trip_id}", status_code=204)
 def delete_trip(trip_id: int, conn=Depends(get_db)):
     cur = conn.cursor(dictionary=True)
     

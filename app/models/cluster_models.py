@@ -68,46 +68,57 @@ class DayOut(BaseModel):
     locations: List[LocationOut]
 
 
-class Solution1Out(BaseModel):
-    day1: List[LocationOut]
+class UserPreferenceSolutionOut(BaseModel):
+    days: List[DayOut]
     rejected: List[LocationOut]
 
 
+class OptimalSolutionOut(BaseModel):
+    days: List[DayOut]
+
+
 class ClusterOut(BaseModel):
-    solution1: Solution1Out
-    solution2: List[DayOut]
+    user_preference_solution: UserPreferenceSolutionOut
+    optimal_solution: OptimalSolutionOut
 
     model_config = {
         "json_schema_extra": {
             "example": {
-                "solution1": {
-                    "day1": [
+                "user_preference_solution": {
+                    "days": [
                         {
-                            "latitude": 1.290270,
-                            "longitude": 103.851959,
-                            "priority": 1,
-                            "stay_hours": 2,
-                            "cluster_id": 0,
-                            "place_id": "ChIJd7zN_thp2jERcf0cKlU5n9A"
+                            "day": 1,
+                            "locations": [
+                                {
+                                    "latitude": 1.290270,
+                                    "longitude": 103.851959,
+                                    "priority": 1,
+                                    "stay_hours": 2,
+                                    "cluster_id": 0,
+                                    "place_id": "ChIJd7zN_thp2jERcf0cKlU5n9A"
+                                }
+                            ],
                         }
                     ],
                     "rejected": []
                 },
-                "solution2": [
-                    {
-                        "day": 1,
-                        "locations": [
-                            {
-                                "latitude": 1.352083,
-                                "longitude": 103.819836,
-                                "priority": 2,
-                                "stay_hours": 3,
-                                "cluster_id": 1,
-                                "place_id": "ChIJ..."
-                            }
-                        ]
-                    }
-                ]
+                "optimal_solution": {
+                    "days": [
+                        {
+                            "day": 1,
+                            "locations": [
+                                {
+                                    "latitude": 1.352083,
+                                    "longitude": 103.819836,
+                                    "priority": 2,
+                                    "stay_hours": 3,
+                                    "cluster_id": 1,
+                                    "place_id": "ChIJ..."
+                                }
+                            ]
+                        }
+                    ]
+                }
             }
         }
     }
