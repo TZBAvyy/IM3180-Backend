@@ -56,7 +56,7 @@ def read_user_trips(user_id: int, conn=Depends(get_db)):
     cur.close()
     return userTrips
 
-@router.get("/recommended")
+@router.get("/list/recommended")
 def get_recommended_trips(conn=Depends(get_db)):
     """
     Returns all trips that have a thumbnail_url (i.e., those with images)
