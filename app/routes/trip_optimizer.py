@@ -40,17 +40,6 @@ def get_optimized_route(request: TripOptiIn):
     time_taken_to_free_space = request.time_taken_to_free_space
     service_time_at_free_space = request.service_time_at_free_space
 
-    # --- Input validation ---
-    n = len(addresses)
-    if addresses is None or hotel_index is None or service_times is None:
-        raise HTTPException(status_code=400, detail="Missing required fields")
-    if n != len(service_times):
-        raise HTTPException(status_code=422, detail="Length of addresses and service_times must match")
-    if n < 1:
-        raise HTTPException(status_code=422, detail="At least one address is required")
-    if service_times[hotel_index] != 0:
-        raise HTTPException(status_code=422, detail="Service time at hotel must be zero")
-
     # --- Google API call for Time Matrix ---
     try:
         time_matrix = get_time_matrix(addresses)
@@ -58,18 +47,45 @@ def get_optimized_route(request: TripOptiIn):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Google Maps Routes API error: {e}")
 
+    # --- Input validation ---
+    len_of_addresses = len(addresses)
+    if addresses is None or hotel_index is None or service_times is None:
+        raise HTTPException(status_code=400, detail="Missing required fields")
+    if len_of_addresses != len(service_times):
+        raise HTTPException(status_code=422, detail="Length of addresses and service_times must match")
+    if len_of_addresses < 1:
+        raise HTTPException(status_code=422, detail="At least one address is required")
+    if service_times[hotel_index] != 0:
+        raise HTTPException(status_code=422, detail="Service time at hotel must be zero")
+    
+    # --- Lunch Node Check ---
+    # Only if trip does not start after lunch hours
+    if lunch_end_hour > start_hour:
+        lunch_index = 0
+    else:
+        lunch_index = -1
+
+    # --- Dinner Node Check ---
+    # Only if service time alone can reach dinner time AND trip doesnt end before dinner start
+    MIN_TIME_TAKEN = sum(service_times)
+    TIME_TILL_DINNER = (dinner_start_hour-start_hour)*60
+    if ((MIN_TIME_TAKEN + 10*len_of_addresses >= TIME_TILL_DINNER) 
+        & (end_hour > dinner_start_hour)):
+        dinner_index = 0
+    else:
+        dinner_index = -1
+
     # --- Insert Free Spot for Food ---
-    while len(eateries) < 2:
-        # raise HTTPException(status_code=422, detail="At least two eateries (restaurant, cafe, food court, etc.) are required among the addresses")
-        eateries.append(n)
-        addresses.append("Food")
+    while len(eateries) < (2+lunch_index+dinner_index):
+        eateries.append(len_of_addresses)
+        addresses.append("Free")
         time_matrix_row_for_space = []
-        for _row in range(n):
+        for _row in range(len_of_addresses):
             time_matrix[_row].append(time_taken_to_free_space)
             time_matrix_row_for_space.append(time_taken_to_free_space)
         time_matrix.append(time_matrix_row_for_space+[0])
         service_times.append(service_time_at_free_space)
-        n = n+1
+        len_of_addresses = len_of_addresses+1
 
     # --- Prepare data for trip optimizer ---
     data = {}
@@ -86,19 +102,25 @@ def get_optimized_route(request: TripOptiIn):
     data['dinner_start_hour'] = dinner_start_hour
     data['dinner_end_hour'] = dinner_end_hour
 
-    result = trip_optimizer(data)
+    result = trip_optimizer(data=data, lunch_index=lunch_index, dinner_index=dinner_index)
     return {"route": result}
 
 # --- Trip optimizer algorithm ---
-def trip_optimizer(data: dict, lunch_index: int = 0, dinner_index: int = 1, flip: bool = False):
+def trip_optimizer(data: dict, lunch_index: int = 0, dinner_index: int = 0, flip: bool = False):
+    print(data)
 
-    # --- Input validation ---
-    if len(data['eatery_nodes']) < 2:
-        print("At least two eatery nodes are required.")
+    # Check for lunch/dinner
+    if (lunch_index != -1):
+        data['lunch_node'] = data['eatery_nodes'][lunch_index]
+        if (dinner_index == 0):
+            dinner_index += 1
+    else:
+        data['lunch_node'] = -1
 
-    # --- Problem data ---
-    data['lunch_node'] = data['eatery_nodes'][lunch_index]
-    data['dinner_node'] = data['eatery_nodes'][dinner_index]
+    if (dinner_index != -1):
+        data['dinner_node'] = data['eatery_nodes'][dinner_index]
+    else:
+        data['dinner_node'] = -1
 
     # --- Routing model ---
     manager = pywrapcp.RoutingIndexManager(len(data['time_matrix']),
@@ -133,16 +155,18 @@ def trip_optimizer(data: dict, lunch_index: int = 0, dinner_index: int = 1, flip
             routing.AddDisjunction([manager.NodeToIndex(node)], penalty)
 
     # --- Lunch spot constraint ---
-    lunch_index_node = manager.NodeToIndex(data['lunch_node'])
-    time_dimension.CumulVar(lunch_index_node).SetRange(
-        int((data['lunch_start_hour'] - data['start_hour']) * 60),
-        int((data['lunch_end_hour'] - data['start_hour']) * 60))
+    if (data['lunch_node'] != -1):
+        lunch_index_node = manager.NodeToIndex(data['lunch_node'])
+        time_dimension.CumulVar(lunch_index_node).SetRange(
+            int((data['lunch_start_hour'] - data['start_hour']) * 60),
+            int((data['lunch_end_hour'] - data['start_hour']) * 60))
 
-     # --- Dinner spot constraint ---
-    dinner_index_node = manager.NodeToIndex(data['dinner_node'])
-    time_dimension.CumulVar(dinner_index_node).SetRange(
-        int((data['dinner_start_hour'] - data['start_hour']) * 60),
-        int((data['dinner_end_hour'] - data['start_hour']) * 60))
+    # --- Dinner spot constraint ---
+    if (data['dinner_node'] != -1):
+        dinner_index_node = manager.NodeToIndex(data['dinner_node'])
+        time_dimension.CumulVar(dinner_index_node).SetRange(
+            int((data['dinner_start_hour'] - data['start_hour']) * 60),
+            int((data['dinner_end_hour'] - data['start_hour']) * 60))
 
     # --- Solve ---
     search_parameters = pywrapcp.DefaultRoutingSearchParameters()
@@ -156,7 +180,10 @@ def trip_optimizer(data: dict, lunch_index: int = 0, dinner_index: int = 1, flip
         route = _format_solution(routing, manager, time_dimension, solution, data)
         return route
     else:
-        # If cannot find solution, flip lunch & dinner places first
+        if (lunch_index==-1 or dinner_index==-1):
+            raise HTTPException(status_code=404, detail="No solution found")
+
+        # If both lunch & dinner exits & cannot find solution, flip lunch & dinner places first
         if not flip:
             return trip_optimizer(data=data, lunch_index=dinner_index, dinner_index=lunch_index, flip=True)
         else:
@@ -171,18 +198,18 @@ def trip_optimizer(data: dict, lunch_index: int = 0, dinner_index: int = 1, flip
         elif lunch_index + 1 < len(data['eatery_nodes']) - 1:
             return trip_optimizer(data=data, lunch_index=lunch_index + 1, dinner_index=lunch_index + 2, flip=False)
         else:
-            print("No solution found!")
-            print(data)
             raise HTTPException(status_code=404, detail="No solution found")
 
 
 def _format_solution(routing, manager, time_dimension, solution, data: dict):
     index = routing.Start(0)
     route = []
+    route_index = 0
     while not routing.IsEnd(index):
         node = manager.IndexToNode(index)
         time_val = solution.Value(time_dimension.CumulVar(index))
         route_item = {}
+        route_item['route_index'] = route_index
         route_item["place_id"] = data['placeIDs'][node]
         route_item["arrival_time"] = f"{data['start_hour'] + time_val // 60:02d}:{time_val % 60:02d}"
         route_item["service_time"] = data["service_times"][node]
@@ -198,9 +225,11 @@ def _format_solution(routing, manager, time_dimension, solution, data: dict):
 
         route.append(route_item)
         index = solution.Value(routing.NextVar(index))
+        route_index += 1
 
     return_time = solution.Value(time_dimension.CumulVar(index))
     final = {
+        "route_index": route_index,
         "place_id": data['placeIDs'][data['depot']],
         "arrival_time": f"{data['start_hour'] + return_time // 60:02d}:{return_time % 60:02d}",
         "service_time":data["service_times"][data['depot']],

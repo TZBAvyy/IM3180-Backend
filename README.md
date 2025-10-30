@@ -85,50 +85,58 @@ Example
 {
   "route": [
     {
+      "route_index": 0,
       "place_id": "ChIJYakjWbYZ2jERgSiDZRBS8OY",
       "arrival_time": "09:00",
       "service_time": 0,
       "type": "Start"
     },
     {
+      "route_index": 1,
+      "place_id": "ChIJzVHFNqkZ2jERboLN2YrltH8",
+      "arrival_time": "09:59",
+      "service_time": 30,
+      "type": "Attraction"
+    },
+    {
+      "route_index": 2,
       "place_id": "ChIJC00vnUgZ2jERodPEc17Iv3Q",
-      "arrival_time": "11:22",
+      "arrival_time": "12:10",
       "service_time": 120,
       "type": "Lunch"
     },
     {
-      "place_id": "ChIJzVHFNqkZ2jERboLN2YrltH8",
-      "arrival_time": "12:03",
-      "service_time": 30,
-      "type": "Attraction"
-    },
-    {
-      "place_id": "ChIJRYMSeKwe2jERAR2QXVU39vg",
-      "arrival_time": "14:50",
-      "service_time": 120,
-      "type": "Attraction"
-    },
-    {
-      "place_id": "ChIJ42h1onIZ2jERBbs-VGqmwrs",
-      "arrival_time": "17:40",
-      "service_time": 120,
-      "type": "Attraction"
-    },
-    {
-      "place_id": "ChIJgftoQGYZ2jERYN5VifWB6Ms",
-      "arrival_time": "18:11",
-      "service_time": 30,
-      "type": "Dinner"
-    },
-    {
+      "route_index": 3,
       "place_id": "ChIJWT0bvgsZ2jERM7sHz6m87gE",
-      "arrival_time": "19:25",
+      "arrival_time": "13:30",
       "service_time": 60,
       "type": "Attraction"
     },
     {
+      "route_index": 4,
+      "place_id": "ChIJRYMSeKwe2jERAR2QXVU39vg",
+      "arrival_time": "16:29",
+      "service_time": 120,
+      "type": "Attraction"
+    },
+    {
+      "route_index": 5,
+      "place_id": "ChIJgftoQGYZ2jERYN5VifWB6Ms",
+      "arrival_time": "17:48",
+      "service_time": 30,
+      "type": "Dinner"
+    },
+    {
+      "route_index": 6,
+      "place_id": "ChIJ42h1onIZ2jERBbs-VGqmwrs",
+      "arrival_time": "19:49",
+      "service_time": 120,
+      "type": "Attraction"
+    },
+    {
+      "route_index": 7,
       "place_id": "ChIJYakjWbYZ2jERgSiDZRBS8OY",
-      "arrival_time": "19:43",
+      "arrival_time": "20:35",
       "service_time": 0,
       "type": "End"
     }

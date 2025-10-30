@@ -8,7 +8,7 @@ from app.routes import trip_optimizer, cluster, multicluster, gemini, auth, trip
 
 # --- FastAPI main app code---
 
-app = FastAPI(title="IM3180 API", version="1.1")
+app = FastAPI(title="IM3180 API", version="1.2")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # tighten to your frontend domain in prod
