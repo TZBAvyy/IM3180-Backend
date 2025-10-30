@@ -75,6 +75,8 @@ Example:
 | lunch_end_hour    | **False**   | int             | Expected ending time range of lunch period, <br>default: 13 (1pm)                                  |
 | dinner_start_hour | **False**   | int             | Expected starting time range of dinner period, <br>default: 17 (5pm)                               |
 | dinner_end_hour   | **False**   | int             | Expected ending time range of dinner period, default: 19 (7pm)                                     |
+| time_taken_to_free_space   | **False**   | int             | Distance from free space to any given location, default: 15 (mins)                                     |
+| service_time_at_free_space   | **False**   | int             | Expected time spent at free space, default: 60 (mins)                                     |
 
 
 #### JSON Output

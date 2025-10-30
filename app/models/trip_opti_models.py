@@ -18,6 +18,8 @@ class TripOptiIn(BaseModel):
     lunch_end_hour: Optional[int] = 13
     dinner_start_hour: Optional[int] = 17
     dinner_end_hour: Optional[int] = 19
+    time_taken_to_free_space: Optional[int] = 15 #min
+    service_time_at_free_space: Optional[int] = 60 #min
 
     class Config:
         json_schema_extra = {

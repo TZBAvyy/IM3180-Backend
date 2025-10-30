@@ -37,6 +37,8 @@ def get_optimized_route(request: TripOptiIn):
     lunch_end_hour = request.lunch_end_hour
     dinner_start_hour = request.dinner_start_hour
     dinner_end_hour = request.dinner_end_hour
+    time_taken_to_free_space = request.time_taken_to_free_space
+    service_time_at_free_space = request.service_time_at_free_space
 
     # --- Input validation ---
     n = len(addresses)
@@ -57,16 +59,16 @@ def get_optimized_route(request: TripOptiIn):
         raise HTTPException(status_code=500, detail=f"Google Maps Routes API error: {e}")
 
     # --- Insert Free Spot for Food ---
-    TIME_TAKEN_TO_FREE_SPOT = 15 #min
-    TIME_TAKEN_AT_FREE_SPOT = 60 #min
     while len(eateries) < 2:
         # raise HTTPException(status_code=422, detail="At least two eateries (restaurant, cafe, food court, etc.) are required among the addresses")
         eateries.append(n)
         addresses.append("Food")
+        time_matrix_row_for_space = []
         for _row in range(n):
-            time_matrix[_row].append(TIME_TAKEN_TO_FREE_SPOT)
-        time_matrix.append([TIME_TAKEN_TO_FREE_SPOT for _ in range(n)]+[0])
-        service_times.append(TIME_TAKEN_AT_FREE_SPOT)
+            time_matrix[_row].append(time_taken_to_free_space)
+            time_matrix_row_for_space.append(time_taken_to_free_space)
+        time_matrix.append(time_matrix_row_for_space+[0])
+        service_times.append(service_time_at_free_space)
         n = n+1
 
     # --- Prepare data for trip optimizer ---
