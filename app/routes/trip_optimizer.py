@@ -43,7 +43,9 @@ def get_optimized_route(request: TripOptiIn):
     # --- Google API call for Time Matrix ---
     try:
         time_matrix = get_time_matrix(addresses)
+        hotel_address = addresses.pop(hotel_index)
         eateries = identify_eateries(addresses)
+        addresses.insert(0, hotel_address)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Google Maps Routes API error: {e}")
 
@@ -304,7 +306,7 @@ def identify_eateries(places: list[str]) -> list[int]:
 
         for place_type in data['types']:
             if place_type in EATERY_TYPES:
-                eatery_indexes.append(i)
+                eatery_indexes.append(i+1)
                 break
 
     return eatery_indexes
