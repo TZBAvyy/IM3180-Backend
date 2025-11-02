@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import math
 import concurrent.futures
 from typing import Dict, Optional, List, Any, Set
 
@@ -359,6 +360,116 @@ CITY_SYNONYMS = {
     "Istanbul": ["İstanbul", "Constantinople", "Sultanahmet", "Taksim"],
 }
 
+CITY_COORDINATES = {
+    "Tokyo": (35.6764, 139.6500),
+    "Kyoto": (35.0116, 135.7681),
+    "Osaka": (34.6937, 135.5023),
+    "Yokohama": (35.4437, 139.6380),
+    "Nagoya": (35.1815, 136.9066),
+    "Sapporo": (43.0618, 141.3545),
+    "Fukuoka": (33.5904, 130.4017),
+    "Nara": (34.6851, 135.8048),
+    "Hiroshima": (34.3853, 132.4553),
+    "Singapore": (1.3521, 103.8198),
+    "Seoul": (37.5665, 126.9780),
+    "Busan": (35.1796, 129.0756),
+    "Incheon": (37.4563, 126.7052),
+    "Jeju": (33.4996, 126.5312),
+    "Daegu": (35.8714, 128.6014),
+    "Bangkok": (13.7563, 100.5018),
+    "Chiang Mai": (18.7883, 98.9853),
+    "Phuket": (7.8804, 98.3923),
+    "Pattaya": (12.9236, 100.8825),
+    "Krabi": (8.0863, 98.9063),
+    "Hanoi": (21.0278, 105.8342),
+    "Ho Chi Minh City": (10.8231, 106.6297),
+    "Da Nang": (16.0544, 108.2022),
+    "Hoi An": (15.8801, 108.3380),
+    "Nha Trang": (12.2388, 109.1967),
+    "Taipei": (25.0330, 121.5654),
+    "Taichung": (24.1477, 120.6736),
+    "Kaohsiung": (22.6273, 120.3014),
+    "Tainan": (22.9997, 120.2270),
+    "Hong Kong": (22.3193, 114.1694),
+    "Macau": (22.1987, 113.5439),
+    "Shanghai": (31.2304, 121.4737),
+    "Beijing": (39.9042, 116.4074),
+    "Guangzhou": (23.1291, 113.2644),
+    "Shenzhen": (22.5431, 114.0579),
+    "Chengdu": (30.5728, 104.0668),
+    "Hangzhou": (30.2741, 120.1551),
+    "Xian": (34.3416, 108.9398),
+    "Suzhou": (31.2989, 120.5853),
+    "Kuala Lumpur": (3.1390, 101.6869),
+    "Penang": (5.4141, 100.3288),
+    "Johor Bahru": (1.4927, 103.7414),
+    "Langkawi": (6.3500, 99.8000),
+    "Malacca": (2.1896, 102.2501),
+    "Jakarta": (-6.2088, 106.8456),
+    "Bali": (-8.3405, 115.0920),
+    "Yogyakarta": (-7.7956, 110.3695),
+    "Surabaya": (-7.2575, 112.7521),
+    "Medan": (3.5952, 98.6722),
+    "Manila": (14.5995, 120.9842),
+    "Cebu": (10.3157, 123.8854),
+    "Boracay": (11.9674, 121.9248),
+    "Davao": (7.1907, 125.4553),
+    "New Delhi": (28.6139, 77.2090),
+    "Mumbai": (19.0760, 72.8777),
+    "Bangalore": (12.9716, 77.5946),
+    "Chennai": (13.0827, 80.2707),
+    "Kolkata": (22.5726, 88.3639),
+    "Paris": (48.8566, 2.3522),
+    "London": (51.5074, -0.1278),
+    "Rome": (41.9028, 12.4964),
+    "Venice": (45.4408, 12.3155),
+    "Barcelona": (41.3874, 2.1686),
+    "Madrid": (40.4168, -3.7038),
+    "Berlin": (52.5200, 13.4050),
+    "Amsterdam": (52.3676, 4.9041),
+    "Prague": (50.0755, 14.4378),
+    "Vienna": (48.2082, 16.3738),
+    "New York": (40.7128, -74.0060),
+    "Los Angeles": (34.0522, -118.2437),
+    "San Francisco": (37.7749, -122.4194),
+    "Las Vegas": (36.1699, -115.1398),
+    "Miami": (25.7617, -80.1918),
+    "Chicago": (41.8781, -87.6298),
+    "Sydney": (-33.8688, 151.2093),
+    "Melbourne": (-37.8136, 144.9631),
+    "Brisbane": (-27.4698, 153.0251),
+    "Perth": (-31.9505, 115.8605),
+    "Toronto": (43.6532, -79.3832),
+    "Vancouver": (49.2827, -123.1207),
+    "Montreal": (45.5017, -73.5673),
+    "Dubai": (25.2048, 55.2708),
+    "Istanbul": (41.0082, 28.9784),
+    "Doha": (25.2854, 51.5310),
+    "Zurich": (47.3769, 8.5417),
+    "Geneva": (46.2044, 6.1432),
+}
+
+CITY_DISTANCE_TOLERANCE_KM = 35.0
+
+def _build_city_conflict_tokens() -> List[tuple[str, str]]:
+    tokens: List[tuple[str, str]] = []
+    for canonical, variants in CITY_SYNONYMS.items():
+        seen: Set[str] = set()
+        for variant in [canonical, *variants]:
+            if not isinstance(variant, str):
+                continue
+            token = variant.strip().lower()
+            if not token or token in seen:
+                continue
+            seen.add(token)
+            alpha_only = re.sub(r"[^a-z]", "", token)
+            if len(alpha_only) < 4:
+                continue
+            tokens.append((canonical, token))
+    return tokens
+
+CITY_CONFLICT_TOKENS = _build_city_conflict_tokens()
+
 
 
 # --- API Key Rotation (Gemini) ---
@@ -449,6 +560,99 @@ def sanitize_address(address: Optional[str], city_hint: Optional[str] = None) ->
     return address_str
 
 
+def detect_conflicting_city(text: Optional[str], target_city: str) -> Optional[str]:
+    if not isinstance(text, str):
+        return None
+    lowered = text.lower()
+    target_lower = target_city.strip().lower()
+    for canonical, token in CITY_CONFLICT_TOKENS:
+        if canonical.lower() == target_lower:
+            continue
+        if token in lowered:
+            # For alphabetic tokens, ensure word boundary to reduce false positives
+            if token.isalpha():
+                pattern = rf"\b{re.escape(token)}\b"
+                if not re.search(pattern, lowered):
+                    continue
+        return canonical
+    return None
+
+
+def detect_conflicting_city_with_context(
+    text: Optional[str],
+    target_city: str,
+    allowed_lookup: Dict[str, str],
+) -> Optional[str]:
+    if not isinstance(text, str):
+        return None
+    lowered = text.lower()
+    target_lower = target_city.strip().lower()
+    synonyms = [key for key, val in allowed_lookup.items() if val.lower() == target_lower]
+    synonyms.append(target_lower)
+    for canonical, token in CITY_CONFLICT_TOKENS:
+        if canonical.lower() == target_lower:
+            continue
+        if token not in lowered:
+            continue
+        token_ok = False
+        if token.isalpha():
+            if re.search(rf"\b{re.escape(token)}\b", lowered):
+                token_ok = True
+        else:
+            token_ok = True
+        if not token_ok:
+            continue
+        conflict_line = canonical
+        for synonym in synonyms:
+            if synonym and synonym in lowered:
+                conflict_line = None
+                break
+        if conflict_line:
+            return conflict_line
+    return None
+
+
+def address_mentions_target_city(
+    address: Optional[str],
+    target_city: str,
+    allowed_lookup: Dict[str, str],
+) -> bool:
+    if not isinstance(address, str):
+        return False
+    lowered = address.lower()
+    target_lower = target_city.strip().lower()
+    if not target_lower:
+        return False
+    if target_lower in lowered:
+        return True
+    tokens = [key for key, val in allowed_lookup.items() if val.lower() == target_lower]
+    for token in tokens:
+        if not token:
+            continue
+        if token in lowered:
+            if token.isalpha():
+                if re.search(rf"\b{re.escape(token)}\b", lowered):
+                    return True
+            else:
+                if re.search(re.escape(token), lowered):
+                    return True
+    return False
+
+
+def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """
+    Compute the great-circle distance between two coordinates in kilometres.
+    """
+    radius_km = 6371.0
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    delta_phi = math.radians(lat2 - lat1)
+    delta_lambda = math.radians(lon2 - lon1)
+    a = math.sin(delta_phi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return radius_km * c
+
+
 
 
 
@@ -523,8 +727,8 @@ def plan_itinerary(request: PlanItinIn):
     try:
         prefs = request.trip_preferences or {}
         print(f"trip_preferences={prefs}")
-        print(f"cities={request.cities}")
-        result = generate_itinerary(prefs, request.cities)
+        print(f"city={request.city}")
+        result = generate_itinerary(prefs, request.city)
         return {"status": "done", "categories": result}
     except HTTPException:
         raise
@@ -563,13 +767,13 @@ def get_places_photos(places: List[Dict[str, str]]):
 # --- Core Itinerary Logic ---
 def generate_itinerary(
     trip_preferences: Dict[str, int] | None = None,
-    cities: List[str] | None = None,
+    city: Optional[str] = None,
     max_locations_per_city: int = 20,
 ) -> Dict[str, list]:
     if not isinstance(trip_preferences, dict):
         trip_preferences = {}
 
-    city_candidates = cities or []
+    city_candidates = [city] if city else []
     cleaned_cities: List[str] = []
     seen_cities_lower = set()
     for city in city_candidates:
@@ -1021,9 +1225,28 @@ def generate_itinerary(
                 if category_remaining.get(cat, 0) <= 0:
                     continue
                 addr = address_value if isinstance(address_value, str) else str(address_value)
+                conflict_address = detect_conflicting_city_with_context(
+                    addr, cleaned_cities[0], allowed_city_lookup
+                )
+                conflict_name = detect_conflicting_city_with_context(
+                    name, cleaned_cities[0], allowed_city_lookup
+                )
+                if conflict_address:
+                    print(
+                        f"[Filter] Skipping '{name}' due to conflicting city token '{conflict_address}' in address='{address_value}'"
+                    )
+                    continue
+                if conflict_name and not address_mentions_target_city(
+                    addr, cleaned_cities[0], allowed_city_lookup
+                ):
+                    print(
+                        f"[Filter] Skipping '{name}' due to conflicting city token '{conflict_name}' in name='{name}' "
+                        f"and address '{address_value}' lacks the requested city."
+                    )
+                    continue
                 canonical_guess = allowed_city_lookup.get(
                     city_value.strip().lower(),
-                    city_value.strip(),
+                    cleaned_cities[0],
                 )
                 addr = sanitize_address(addr, canonical_guess)
                 activity["address"] = addr
@@ -1044,7 +1267,7 @@ def generate_itinerary(
 
                 if initial_key not in geocode_cache and initial_key not in pending_keys:
                     pending_keys.add(initial_key)
-                    pending_geocode_jobs.append((initial_key, addr, canonical_guess))
+                    pending_geocode_jobs.append((initial_key, addr, cleaned_cities[0]))
 
         if pending_geocode_jobs:
             max_workers = min(8, len(pending_geocode_jobs))
@@ -1085,7 +1308,35 @@ def generate_itinerary(
                 matched_canonical = allowed_city_lookup.get(matched_city.strip().lower())
                 if matched_canonical:
                     final_city = matched_canonical
-            final_key = normalize_location_key(name, final_city, addr)
+            if final_city not in city_remaining:
+                print(f"[Geocoding] Rejected {name} at {addr}: city '{final_city}' not in allowed list.")
+                continue
+            if final_city != cleaned_cities[0]:
+                print(f"[Geocoding] Skipping {name} because resolved city '{final_city}' != requested '{cleaned_cities[0]}'")
+                continue
+            formatted_address_raw = geo.get("formatted_address") or addr
+            formatted_address = sanitize_address(formatted_address_raw, None)
+            conflict_geo = detect_conflicting_city_with_context(
+                formatted_address, cleaned_cities[0], allowed_city_lookup
+            )
+            if conflict_geo:
+                print(
+                    f"[Geocoding] Skipping {name} due to conflicting city '{conflict_geo}' in formatted address '{formatted_address}'"
+                )
+                continue
+            matched_ok = bool(geo.get("matched_city_ok"))
+            if not matched_ok and address_mentions_target_city(formatted_address, cleaned_cities[0], allowed_city_lookup):
+                matched_ok = True
+            proximity_val = geo.get("proximity_km")
+            if not matched_ok and isinstance(proximity_val, (int, float)) and proximity_val <= CITY_DISTANCE_TOLERANCE_KM:
+                matched_ok = True
+            if not matched_ok:
+                print(
+                    f"[Geocoding] Skipping {name} because formatted address '{formatted_address}' "
+                    f"does not validate for city {cleaned_cities[0]} (matched_city_ok={geo.get('matched_city_ok')}, proximity_km={proximity_val})"
+                )
+                continue
+            final_key = normalize_location_key(name, final_city, formatted_address)
             if final_key != initial_key:
                 geocode_cache[final_key] = geo
             if final_key in seen_location_keys:
@@ -1101,9 +1352,17 @@ def generate_itinerary(
             pid = geo.get("place_id")
             if isinstance(pid, str) and pid in seen_place_ids:
                 continue
+            lat = geo.get("latitude")
+            lon = geo.get("longitude")
+            if lat is None or lon is None:
+                print(
+                    f"[Geocoding] Skipping {name}: Google geocode missing lat/lng for '{formatted_address_raw}'"
+                )
+                continue
             activity["city"] = final_city
-            activity["latitude"] = geo.get("latitude")
-            activity["longitude"] = geo.get("longitude")
+            activity["address"] = formatted_address
+            activity["latitude"] = lat
+            activity["longitude"] = lon
             activity["place_id"] = pid
             accumulated_output[cat].append(activity)
             seen_location_keys.add(final_key)
@@ -1311,6 +1570,9 @@ def resolve_latlng_from_address(
                 allowed_lookup = {c.lower(): c for c in (allowed_cities or [])}
             selected_result = None
             matched_city_name = None
+            target_city = None
+            if city:
+                target_city = allowed_lookup.get(city.strip().lower(), city.strip())
             for result in data["results"]:
                 address_components = result.get("address_components", [])
                 formatted_address = result.get("formatted_address", "")
@@ -1329,7 +1591,7 @@ def resolve_latlng_from_address(
                 if not match_name and city:
                     target_lower = city.lower()
                     if formatted_address and target_lower in formatted_address.lower():
-                        match_name = allowed_lookup.get(target_lower, city)
+                        match_name = allowed_lookup.get(target_lower)
                 if match_name:
                     selected_result = result
                     matched_city_name = match_name
@@ -1341,21 +1603,28 @@ def resolve_latlng_from_address(
             loc = selected_result["geometry"]["location"]
             pid = selected_result.get("place_id")
             formatted_address = selected_result.get("formatted_address", "")
-            if not matched_city_name and city and formatted_address:
-                target_lower = city.lower()
-                if target_lower in formatted_address.lower():
-                    matched_city_name = city
-            if not matched_city_name and allowed_lookup:
-                for city_lower, proper in allowed_lookup.items():
-                    if city_lower in formatted_address.lower():
-                        matched_city_name = proper
-                        break
+            distance_value = None
+            proximity_ok = False
+            if not matched_city_name and target_city:
+                target_coords = CITY_COORDINATES.get(target_city)
+                if target_coords:
+                    distance_value = haversine_km(target_coords[0], target_coords[1], loc["lat"], loc["lng"])
+                    if distance_value <= CITY_DISTANCE_TOLERANCE_KM:
+                        proximity_ok = True
+                        matched_city_name = target_city
+            if matched_city_name:
+                canonical_lookup = allowed_lookup.get(matched_city_name.lower())
+                if isinstance(canonical_lookup, str):
+                    matched_city_name = canonical_lookup
+            matched_flag = matched_city_name is not None
             return {
                 "latitude": loc["lat"],
                 "longitude": loc["lng"],
                 "place_id": pid,
-                "matched_city_ok": matched_city_name is not None,
+                "matched_city_ok": matched_flag or proximity_ok,
                 "matched_city": matched_city_name,
+                "formatted_address": formatted_address,
+                "proximity_km": distance_value,
             }
     except Exception as e:
         print(f"[Geocode Error] {e}")

@@ -22,6 +22,8 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 router = APIRouter(prefix="/cluster", tags=["cluster"])
 
+MAX_LOCATIONS_PER_DAY = 9
+
 
 @router.get("/")
 def test():
@@ -89,27 +91,24 @@ def get_clusters_given_all_locations(data: ClusterIn) -> ClusterOut:
     current_day_idx = 0
 
     for loc in processed_locations:
-        if current_day_idx >= requested_days:
-            solution1_rejected.append(loc)
-            continue
-
-        if day_hours[current_day_idx] + loc["stay_hours"] <= max_hours_per_day + 1e-6:
-            day_slots[current_day_idx].append(loc)
-            day_hours[current_day_idx] += loc["stay_hours"]
-            continue
-
-        # advance to the next day until we find space or exhaust requested days
-        while current_day_idx < requested_days and day_hours[current_day_idx] + loc["stay_hours"] > max_hours_per_day + 1e-6:
+        while current_day_idx < requested_days and (
+            len(day_slots[current_day_idx]) >= MAX_LOCATIONS_PER_DAY
+            or day_hours[current_day_idx] + loc["stay_hours"] > max_hours_per_day + 1e-6
+        ):
             current_day_idx += 1
+
         if current_day_idx >= requested_days:
             solution1_rejected.append(loc)
-        else:
-            day_slots[current_day_idx].append(loc)
-            day_hours[current_day_idx] += loc["stay_hours"]
+            continue
+
+        day_slots[current_day_idx].append(loc)
+        day_hours[current_day_idx] += loc["stay_hours"]
 
     # --- Optimal Solution (split by clusters across days/min days) ---
     total_stay_hours = sum(loc["stay_hours"] for loc in processed_locations)
-    min_days_needed = ceil(total_stay_hours / max_hours_per_day)
+    min_days_by_hours = ceil(total_stay_hours / max_hours_per_day)
+    min_days_by_locations = ceil(len(processed_locations) / MAX_LOCATIONS_PER_DAY)
+    min_days_needed = max(min_days_by_hours, min_days_by_locations)
     num_days = max(1, min_days_needed)
 
     day_buckets: list[list[dict]] = [[] for _ in range(num_days)]
@@ -124,23 +123,44 @@ def get_clusters_given_all_locations(data: ClusterIn) -> ClusterOut:
     for _, cluster_locs in cluster_order:
         cluster_sorted = sorted(cluster_locs, key=lambda loc: loc["priority"])
         cluster_hours = sum(loc["stay_hours"] for loc in cluster_sorted)
-        remaining = [max_hours_per_day - used for used in day_bucket_hours]
-        best_day = max(range(num_days), key=lambda idx: remaining[idx])
+        candidate_days = [
+            idx
+            for idx in range(num_days)
+            if len(day_buckets[idx]) + len(cluster_sorted) <= MAX_LOCATIONS_PER_DAY
+            and day_bucket_hours[idx] + cluster_hours <= max_hours_per_day + 1e-6
+        ]
 
-        if cluster_hours <= remaining[best_day]:
+        if candidate_days:
+            best_day = max(
+                candidate_days,
+                key=lambda idx: (
+                    max_hours_per_day - day_bucket_hours[idx],
+                    MAX_LOCATIONS_PER_DAY - len(day_buckets[idx]),
+                ),
+            )
             day_buckets[best_day].extend(cluster_sorted)
             day_bucket_hours[best_day] += cluster_hours
             continue
 
         for loc in cluster_sorted:
             day_indices = sorted(
-                range(num_days),
-                key=lambda idx: max_hours_per_day - day_bucket_hours[idx],
+                [
+                    idx
+                    for idx in range(num_days)
+                    if len(day_buckets[idx]) < MAX_LOCATIONS_PER_DAY
+                ],
+                key=lambda idx: (
+                    max_hours_per_day - day_bucket_hours[idx],
+                    MAX_LOCATIONS_PER_DAY - len(day_buckets[idx]),
+                ),
                 reverse=True,
             )
             placed = False
             for day_idx in day_indices:
-                if day_bucket_hours[day_idx] + loc["stay_hours"] <= max_hours_per_day + 1e-6:
+                if (
+                    day_bucket_hours[day_idx] + loc["stay_hours"] <= max_hours_per_day + 1e-6
+                    and len(day_buckets[day_idx]) < MAX_LOCATIONS_PER_DAY
+                ):
                     day_buckets[day_idx].append(loc)
                     day_bucket_hours[day_idx] += loc["stay_hours"]
                     placed = True
