@@ -80,11 +80,15 @@ def update_activity(activity_id: int, body: dict, conn=Depends(get_db)):
         cur.close()
         raise HTTPException(404, "Activity not found")
 
-    # dynamic update: only update provided fields
-    fields = []
-    values = []
+    # dynamic update: only update provided valid fields
+    allowed_fields = [
+        "destination", "type", "start_time", "end_time", "description",
+        "rating", "address", "place_id", "thumbnail", "lat", "lng"
+    ]
+
+    fields, values = [], []
     for key, val in body.items():
-        if key in ["destination", "type", "start_time", "end_time", "description", "rating", "address"]:
+        if key in allowed_fields:
             fields.append(f"{key}=%s")
             values.append(val)
 
@@ -101,6 +105,7 @@ def update_activity(activity_id: int, body: dict, conn=Depends(get_db)):
     updated = cur.fetchone()
     cur.close()
     return updated
+
 
 # ---------------- CREATE ----------------
 @router.post("/", status_code=201)
@@ -150,8 +155,8 @@ def create_activity(day_id: int, body: dict, conn=Depends(get_db)):
     cur.execute(
         """
         INSERT INTO activities 
-        (day_trip_id, destination, type, start_time, end_time, description, rating, address)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+        (day_trip_id, destination, type, start_time, end_time, description, rating, address, place_id, thumbnail, lat, lng)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """,
         (
             day_id,
@@ -162,8 +167,13 @@ def create_activity(day_id: int, body: dict, conn=Depends(get_db)):
             body.get("description"),
             body.get("rating"),
             body.get("address"),
+            body.get("place_id"),
+            body.get("thumbnail"),
+            body.get("lat"),
+            body.get("lng"),
         ),
     )
+
     conn.commit()
     activity_id = cur.lastrowid
 
@@ -175,32 +185,6 @@ def create_activity(day_id: int, body: dict, conn=Depends(get_db)):
 # ---------------- CREATE FULL TRIP (BULK INSERT) ----------------
 @router.post("/full", status_code=201)
 def create_full_trip(body: dict, conn=Depends(get_db)):
-    """
-    Body example:
-    {
-      "user_id": 2,
-      "name": "Japan Autumn Adventure",
-      "start_date": "2025-11-10",
-      "end_date": "2025-11-15",
-      "days": [
-        {
-          "day_number": 1,
-          "date": "2025-11-10",
-          "activities": [
-            {
-              "destination": "Shinjuku Gyoen National Garden",
-              "type": "Nature",
-              "start_time": "09:00:00",
-              "end_time": "11:00:00",
-              "description": "Beautiful garden with autumn leaves.",
-              "rating": 4.7,
-              "address": "11 Naitomachi, Shinjuku City, Tokyo"
-            }
-          ]
-        }
-      ]
-    }
-    """
     cur = conn.cursor(dictionary=True)
     try:
         # Insert trip
@@ -221,9 +205,9 @@ def create_full_trip(body: dict, conn=Depends(get_db)):
             for a in d.get("activities", []):
                 cur.execute(
                     """
-                    INSERT INTO activities
-                    (day_trip_id, destination, type, start_time, end_time, description, rating, address)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                    INSERT INTO activities 
+                    (day_trip_id, destination, type, start_time, end_time, description, rating, address, place_id, thumbnail, lat, lng)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     """,
                     (
                         day_id,
@@ -234,8 +218,13 @@ def create_full_trip(body: dict, conn=Depends(get_db)):
                         a.get("description"),
                         a.get("rating"),
                         a.get("address"),
+                        a.get("place_id"),
+                        a.get("thumbnail"),
+                        a.get("lat"),
+                        a.get("lng"),
                     ),
                 )
+
 
         conn.commit()
         cur.close()
