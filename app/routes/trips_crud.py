@@ -201,8 +201,17 @@ def create_trip(body: dict, conn=Depends(get_db)):
     """
     cur = conn.cursor(dictionary=True)
     cur.execute(
-        "INSERT INTO trips (user_id, name, start_date, end_date) VALUES (%s,%s,%s,%s)",
-        (body["user_id"], body["name"], body["start_date"], body["end_date"]),
+        """
+        INSERT INTO trips (user_id, name, start_date, end_date, thumbnail)
+        VALUES (%s, %s, %s, %s, %s)
+        """,
+        (
+            body["user_id"],
+            body["name"],
+            body["start_date"],
+            body["end_date"],
+            body.get("thumbnail"),
+        ),
     )
     conn.commit()
     trip_id = cur.lastrowid
