@@ -276,7 +276,7 @@ def create_full_trip(body: dict, conn=Depends(get_db)):
         # Insert trip
         cur.execute(
             """
-            INSERT INTO trips (user_id, name, start_date, end_date, thumbnail_url)
+            INSERT INTO trips (user_id, name, start_date, end_date, thumbnail)
             VALUES (%s, %s, %s, %s, %s)
             """,
             (
@@ -284,7 +284,7 @@ def create_full_trip(body: dict, conn=Depends(get_db)):
                 body["name"],
                 body["start_date"],
                 body["end_date"],
-                body.get("thumbnail_url"), 
+                body.get("thumbnail"), 
             ),
         )
         trip_id = cur.lastrowid
