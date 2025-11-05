@@ -11,7 +11,7 @@ def get_recommended_trips(conn=Depends(get_db)):
     Returns all trips that have a thumbnail_url (i.e., those with images)
     """
     cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT * FROM trips WHERE thumbnail_url IS NOT NULL AND thumbnail_url != '' ORDER BY created_at DESC")
+    cur.execute("SELECT * FROM trips WHERE thumbnail IS NOT NULL AND thumbnail != '' ORDER BY created_at DESC")
     trips = cur.fetchall()
     cur.close()
     return trips
@@ -275,8 +275,17 @@ def create_full_trip(body: dict, conn=Depends(get_db)):
     try:
         # Insert trip
         cur.execute(
-            "INSERT INTO trips (user_id, name, start_date, end_date) VALUES (%s,%s,%s,%s)",
-            (body["user_id"], body["name"], body["start_date"], body["end_date"]),
+            """
+            INSERT INTO trips (user_id, name, start_date, end_date, thumbnail_url)
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            (
+                body["user_id"],
+                body["name"],
+                body["start_date"],
+                body["end_date"],
+                body.get("thumbnail_url"), 
+            ),
         )
         trip_id = cur.lastrowid
 
@@ -310,7 +319,6 @@ def create_full_trip(body: dict, conn=Depends(get_db)):
                         a.get("lng"),
                     ),
                 )
-
 
         conn.commit()
         cur.close()
