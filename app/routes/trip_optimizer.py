@@ -258,7 +258,7 @@ def get_time_matrix(places: list[str]) -> list[list]:
     params = {
         "origins": origins,
         "destinations": destinations,
-        "travelMode": "TRANSIT",
+        "travelMode": "DRIVE",
     }
     response = requests.post(url=url,headers=headers,json=params)
     if response.status_code != 200:
@@ -275,7 +275,7 @@ def get_time_matrix(places: list[str]) -> list[list]:
             entry['duration'] = 0  # Zero duration for same origin and destination
 
         elif entry['condition'] == "ROUTE_NOT_FOUND":
-            raise HTTPException(status_code=500, detail="No route found between some locations")
+            raise HTTPException(status_code=500, detail=f"No route found between some locations, fail on: {entry['originIndex']} to {entry['destinationIndex']}")
         
         else:
             time_matrix[entry['originIndex']][entry['destinationIndex']] = int(entry['duration'][:-1])//60      
