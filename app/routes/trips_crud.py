@@ -107,6 +107,92 @@ def update_activity(activity_id: int, body: dict, conn=Depends(get_db)):
     return updated
 
 
+@router.put("/{trip_id}")
+def update_trip(trip_id: int, body: dict, conn=Depends(get_db)):
+    cur = conn.cursor(dictionary=True)
+
+    # Verify trip exists
+    cur.execute("SELECT * FROM trips WHERE id=%s", (trip_id,))
+    trip = cur.fetchone()
+    if not trip:
+        cur.close()
+        raise HTTPException(404, "Trip not found")
+
+    # Update trip-level info
+    trip_fields = []
+    trip_values = []
+    for key in ["name", "start_date", "end_date"]:
+        if key in body:
+            trip_fields.append(f"{key}=%s")
+            trip_values.append(body[key])
+
+    if trip_fields:
+        trip_values.append(trip_id)
+        cur.execute(f"UPDATE trips SET {', '.join(trip_fields)} WHERE id=%s", tuple(trip_values))
+
+    # Update days and activities if provided
+    if "days" in body:
+        for day in body["days"]:
+            day_id = day.get("id")
+            if not day_id:
+                continue
+
+            # update day info
+            if any(k in day for k in ["date", "destination"]):
+                cur.execute(
+                    "UPDATE day_trips SET date=%s, destination=%s WHERE id=%s",
+                    (day.get("date"), day.get("destination"), day_id),
+                )
+
+            # update activities
+            for activity in day.get("activities", []):
+                activity_id = activity.get("id")
+                if not activity_id:
+                    continue
+
+                cur.execute(
+                    """
+                    UPDATE activities
+                    SET destination=%s,
+                        type=%s,
+                        start_time=%s,
+                        end_time=%s,
+                        description=%s,
+                        rating=%s,
+                        address=%s,
+                        place_id=%s,
+                        thumbnail=%s,
+                        lat=%s,
+                        lng=%s
+                    WHERE id=%s
+                    """,
+                    (
+                        activity.get("destination"),
+                        activity.get("type"),
+                        activity.get("start_time"),
+                        activity.get("end_time"),
+                        activity.get("description"),
+                        activity.get("rating"),
+                        activity.get("address"),
+                        activity.get("place_id"),
+                        activity.get("thumbnail"),
+                        activity.get("lat"),
+                        activity.get("lng"),
+                        activity_id,
+                    ),
+                )
+
+    conn.commit()
+
+    # Return updated trip
+    cur.execute("SELECT * FROM trips WHERE id=%s", (trip_id,))
+    updated_trip = cur.fetchone()
+    cur.close()
+    return updated_trip
+
+
+
+
 # ---------------- CREATE ----------------
 @router.post("/", status_code=201)
 def create_trip(body: dict, conn=Depends(get_db)):
