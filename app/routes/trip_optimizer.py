@@ -80,6 +80,7 @@ def get_optimized_route(request: TripOptiIn):
 
     # --- Insert Free Spot for Food ---
     while len(eateries) < (2+lunch_index+dinner_index):
+        # print("+1 eatery")
         eateries.append(len_of_addresses)
         addresses.append("Free")
         time_matrix_row_for_space = []
@@ -154,8 +155,7 @@ def trip_optimizer(data: dict, lunch_index: int = 0, dinner_index: int = 0, flip
     # --- Penalties: Allow to drop nodes ---
     penalty = 1000
     for node in range(1, len(data["time_matrix"])):
-        if node not in data['eatery_nodes']:
-            routing.AddDisjunction([manager.NodeToIndex(node)], penalty)
+        routing.AddDisjunction([manager.NodeToIndex(node)], penalty)
 
     # --- Lunch spot constraint ---
     if (data['lunch_node'] != -1):
@@ -275,7 +275,8 @@ def get_time_matrix(places: list[str]) -> list[list]:
             entry['duration'] = 0  # Zero duration for same origin and destination
 
         elif entry['condition'] == "ROUTE_NOT_FOUND":
-            raise HTTPException(status_code=500, detail=f"No route found between some locations, fail on: {entry['originIndex']} to {entry['destinationIndex']}")
+            # raise HTTPException(status_code=500, detail=f"No route found between some locations, fail on: {entry['originIndex']} to {entry['destinationIndex']}")
+            time_matrix[entry['originIndex']][entry['destinationIndex']] = 100000 # Large int to show that route does not exist 
         
         else:
             time_matrix[entry['originIndex']][entry['destinationIndex']] = int(entry['duration'][:-1])//60      
@@ -304,6 +305,7 @@ def identify_eateries(places: list[str]) -> list[int]:
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code,detail=response.text)
         data = response.json()
+        # print(data['displayName'])
 
         for place_type in data['types']:
             if place_type in EATERY_TYPES:
