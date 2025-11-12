@@ -37,7 +37,7 @@ class ResetPasswordIn(BaseModel):
     new_password: str
 
 
-S3_BUCKET = os.getenv("AWS_S3_BUCKET_NAME", "trip-opt-bucket")
+S3_BUCKET = os.getenv("AWS_S3_BUCKET_NAME", "trip-opt-bucket2")
 S3_REGION = os.getenv("AWS_REGION", "ap-southeast-2")
 s3_client = boto3.client("s3", region_name=S3_REGION)
 
