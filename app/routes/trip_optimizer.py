@@ -40,7 +40,7 @@ def get_optimized_route(request: TripOptiIn):
     time_taken_to_free_space = request.time_taken_to_free_space
     service_time_at_free_space = request.service_time_at_free_space
 
-    # --- Google API call for Time Matrix ---
+    # --- Google API call for Time Matrix & Eatery Index ---
     try:
         hotel_address = addresses.pop(hotel_index)
         eateries = identify_eateries(addresses)

@@ -4,6 +4,10 @@ Repository for Backend API of the Trip Optimizer Web Application
 
 ## Quickstart:
 
+### Setting up .env file
+1. Clone .env-template and rename clone copy to .env
+1. Edit all .env variables to your settings (DB settings, API keys, ect.)
+
 ### VSCode Python Extension Method
 > In the search bar at the top middle of the window
 1. Type "\> Python: Create Environment"
